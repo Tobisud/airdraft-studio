@@ -21,3 +21,5 @@ The stroke model preserves freehand geometry in the sketch plane and adds thickn
 ## AI mannequin example
 
 The bundled mannequin was reconstructed with TripoSR's public checkpoint from a generated front-view image guided by a smooth, featureless mannequin reference. The resulting single, watertight mesh was smoothed and assigned a matte white material. The preview loads the pre-generated GLB. Real-time generation from new sketches would require a separate inference backend.
+
+The AI clay house uses the same TripoSR pipeline with a generated reference of a simple gabled house. House mode also applies rounded edges and a matte-white material directly to your own outlines in the browser.

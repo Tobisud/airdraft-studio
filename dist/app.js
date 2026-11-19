@@ -229,7 +229,7 @@ try {
 }
 
 const ink = new THREE.MeshStandardMaterial({color:0xa88bfb,roughness:.38});
-const wall = new THREE.MeshStandardMaterial({color:0x9475db,roughness:.6});
+const clay = new THREE.MeshStandardMaterial({color:0xfafafa,roughness:.82});
 const jointGeometry = new THREE.SphereGeometry(.055, 12, 8);
 const up = new THREE.Vector3(0,1,0);
 let model = null;
@@ -259,17 +259,33 @@ function buildHouse(points, group, width, height) {
   const peak = points.reduce((highest,p) => p.y > highest.y ? p : highest);
   const edge = points.filter(p => Math.abs(p.x) > width * .40);
   const eave = clamp(edge.reduce((highest,p) => Math.max(highest,p.y), -height/2), -height*.15, height*.32);
+  const corners = [
+    new THREE.Vector2(-width/2, -height/2),
+    new THREE.Vector2(width/2, -height/2),
+    new THREE.Vector2(width/2, eave),
+    new THREE.Vector2(clamp(peak.x,-width*.36,width*.36), height/2),
+    new THREE.Vector2(-width/2, eave)
+  ];
+  const radius = Math.min(width,height) * .044;
   const shape = new THREE.Shape();
-  shape.moveTo(-width/2, -height/2);
-  shape.lineTo(width/2, -height/2);
-  shape.lineTo(width/2, eave);
-  shape.lineTo(clamp(peak.x,-width*.36,width*.36),height/2);
-  shape.lineTo(-width/2,eave);
+  corners.forEach((corner,i) => {
+    const previous = corners.at(i-1);
+    const next = corners[(i+1)%corners.length];
+    const inset = toward => corner.clone().lerp(toward, Math.min(.25,radius/corner.distanceTo(toward)));
+    const from = inset(previous);
+    const to = inset(next);
+    if (i === 0) shape.moveTo(from.x,from.y);
+    else shape.lineTo(from.x,from.y);
+    shape.quadraticCurveTo(corner.x,corner.y,to.x,to.y);
+  });
   shape.closePath();
   const depth = width * .65;
-  const geometry = new THREE.ExtrudeGeometry(shape,{depth,bevelEnabled:false});
+  const geometry = new THREE.ExtrudeGeometry(shape, {
+    depth, bevelEnabled:true, bevelThickness:radius*.42,
+    bevelSize:radius*.34, bevelSegments:6, curveSegments:8
+  });
   geometry.translate(0,0,-depth/2);
-  group.add(new THREE.Mesh(geometry,[ink,wall]));
+  group.add(new THREE.Mesh(geometry,clay));
 }
 
 function generate(label) {
@@ -308,7 +324,7 @@ function showModel(next, label) {
       if (node.geometry && node.geometry !== jointGeometry) node.geometry.dispose();
       const materials = Array.isArray(node.material) ? node.material : [node.material];
       for (const material of materials) {
-        if (material && material !== ink && material !== wall) material.dispose();
+        if (material && material !== ink && material !== clay) material.dispose();
       }
     });
   }
@@ -338,32 +354,33 @@ function loadExample() {
   generate('Example model');
 }
 byId('sample').addEventListener('click', loadExample);
-const aiExample = byId('ai-example');
-const aiStatus = byId('ai-status');
-aiExample.addEventListener('click', async () => {
-  const revision = modelRevision;
-  aiExample.disabled = true;
-  aiStatus.textContent = 'Loading the reconstructed mesh…';
-  try {
-    const {GLTFLoader} = await import('three/addons/loaders/GLTFLoader.js');
-    const {scene: mannequin} = await new GLTFLoader().loadAsync('./mannequin.glb');
-    const size = new THREE.Box3().setFromObject(mannequin).getSize(new THREE.Vector3());
-    mannequin.scale.multiplyScalar(3.8 / Math.max(size.x, size.y, size.z));
-    if (revision !== modelRevision) {
-      aiStatus.textContent = 'The preview changed. Select the AI example again to load it.';
-      return;
+for (const button of document.querySelectorAll('[data-model-name]')) {
+  const message = byId(button.getAttribute('aria-describedby'));
+  button.addEventListener('click', async () => {
+    const revision = modelRevision;
+    button.disabled = true;
+    message.textContent = 'Loading the reconstructed mesh…';
+    try {
+      const {GLTFLoader} = await import('three/addons/loaders/GLTFLoader.js');
+      const {scene: sample} = await new GLTFLoader().loadAsync('./' + button.dataset.file);
+      if (revision !== modelRevision) {
+        message.textContent = 'The preview changed. Select the example again to load it.';
+        return;
+      }
+      const size = new THREE.Box3().setFromObject(sample).getSize(new THREE.Vector3());
+      sample.scale.multiplyScalar(3.8 / Math.max(size.x, size.y, size.z));
+      sample.name = button.dataset.modelName;
+      showModel(sample, button.dataset.modelLabel + ' · TripoSR');
+      message.textContent = 'Example loaded. Drag the preview to rotate it.';
+      byId('model-panel').scrollIntoView({block:'nearest'});
+    } catch (error) {
+      message.textContent = 'Could not load the 3D preview. You can download the GLB directly.';
+      console.error(error);
+    } finally {
+      button.disabled = false;
     }
-    mannequin.name = 'AirDraft_Mannequin';
-    showModel(mannequin, 'AI mannequin · TripoSR');
-    aiStatus.textContent = 'Mannequin loaded. Drag the preview to rotate it.';
-    byId('model-panel').scrollIntoView({block:'nearest'});
-  } catch (error) {
-    aiStatus.textContent = 'Could not load the 3D preview. You can download the GLB directly.';
-    console.error(error);
-  } finally {
-    aiExample.disabled = false;
-  }
-});
+  });
+}
 byId('undo').addEventListener('click', () => { finish(); strokes.pop(); paint(); });
 byId('clear').addEventListener('click', () => { finish(); strokes = []; paint(); });
 byId('generate').addEventListener('click', () => generate('Model ready'));

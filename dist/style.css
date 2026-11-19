@@ -31,6 +31,6 @@ canvas{display:block;width:100%;height:100%;touch-action:none}
 @media(max-width:420px){.wrap{width:calc(100% - 24px)}.bar h2{font-size:16px}.nav a:last-child{font-size:14px}}
 .character{display:grid;grid-template-columns:minmax(150px,220px) 1fr;align-items:center;gap:22px;margin-top:24px;padding:16px 22px 16px 16px}
 .character img{display:block;width:100%;aspect-ratio:1;object-fit:cover;border-radius:10px;background:#fff}
-.character h2{font-size:24px}.character p{color:var(--muted);margin:6px 0 12px}.character #ai-status{font-size:14px;margin:12px 0 0}
+.character h2{font-size:24px}.character p{color:var(--muted);margin:6px 0 12px}.character [role="status"]{font-size:14px;margin:12px 0 0}
 .character-actions{display:flex;flex-wrap:wrap;align-items:center;gap:12px 18px}
 @media(max-width:530px){.character{grid-template-columns:1fr}.character img{width:min(100%,220px)}}
