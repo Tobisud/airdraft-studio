@@ -60,8 +60,8 @@ export function createDrawing(onChange) {
   let eraseRecorded = false;
   const history = [];
   const eraseRadius = 16;
-  const pinchStartRatio = .37;
-  const pinchReleaseRatio = .47;
+  const pinchStartRatio = .24;
+  const pinchReleaseRatio = .32;
   const eraserToggleHoldMs = 75;
   for (const ring of [cursor, eraserPreview]) {
     ring.style.setProperty('--eraser-diameter', eraseRadius * 2 + 'px');
