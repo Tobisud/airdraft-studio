@@ -9,8 +9,9 @@ const canvas = byId('sketch');
 const viewer = byId('viewer');
 const mode = byId('mode');
 const status = byId('model-status');
-const drawing = createDrawing(count => {
-  byId('undo').disabled = byId('clear').disabled = count === 0;
+const drawing = createDrawing((count, canUndo) => {
+  byId('undo').disabled = !canUndo;
+  byId('clear').disabled = count === 0;
 });
 
 const examples = {

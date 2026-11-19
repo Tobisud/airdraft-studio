@@ -15,8 +15,9 @@ try {
   // Storage is optional for the anonymous session ID.
 }
 
-const drawing = createDrawing(count => {
-  save.disabled = byId('undo').disabled = byId('clear').disabled = count === 0;
+const drawing = createDrawing((count, canUndo) => {
+  byId('undo').disabled = !canUndo;
+  save.disabled = byId('clear').disabled = count === 0;
 });
 byId('undo').addEventListener('click', () => drawing.undo());
 byId('clear').addEventListener('click', () => drawing.replace([]));

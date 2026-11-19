@@ -1,10 +1,50 @@
 export const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
 
+// Clip each centerline segment against a circle in screen pixels.
+function clipStroke(stroke, center, width, height, radius) {
+  const offset = ([x,y]) => [(x-center[0])*width,(y-center[1])*height];
+  if (stroke.length === 1) return Math.hypot(...offset(stroke[0])) < radius ? [] : [stroke];
+
+  const pieces = [];
+  let piece = [];
+  let changed = false;
+  const append = (first,last) => {
+    if (!piece.length) piece.push(first);
+    piece.push(last);
+  };
+  for (let i = 1; i < stroke.length; i++) {
+    const first = stroke[i-1];
+    const last = stroke[i];
+    const [x,y] = offset(first);
+    const dx = (last[0]-first[0])*width;
+    const dy = (last[1]-first[1])*height;
+    const lengthSquared = dx*dx + dy*dy;
+    if (!lengthSquared) continue;
+    const centerT = -(x*dx+y*dy)/lengthSquared;
+    const distanceSquared = (x+centerT*dx)**2 + (y+centerT*dy)**2;
+    const halfSpan = Math.sqrt(Math.max(0,radius*radius-distanceSquared)/lengthSquared);
+    const enter = Math.max(0,centerT-halfSpan);
+    const exit = Math.min(1,centerT+halfSpan);
+    if (enter >= exit) {
+      append(first,last);
+      continue;
+    }
+    changed = true;
+    const at = t => first.map((coordinate,axis) => coordinate+(last[axis]-coordinate)*t);
+    if (enter > 0) append(first,at(enter));
+    if (piece.length) pieces.push(piece);
+    piece = exit < 1 ? [at(exit),last] : [];
+  }
+  if (piece.length) pieces.push(piece);
+  return changed ? pieces : [stroke];
+}
+
 export function createDrawing(onChange) {
   const byId = id => document.getElementById(id);
   const canvas = byId('sketch');
   const ctx = canvas.getContext('2d');
   const cameraButton = byId('camera');
+  const eraserButton = byId('eraser');
   const inputStatus = byId('input');
   const cameraStatus = byId('camera-status');
   const video = byId('video');
@@ -14,6 +54,11 @@ export function createDrawing(onChange) {
   let strokes = [];
   const sources = new WeakMap();
   let active = null;
+  let erasing = false;
+  let erasePoint = null;
+  let eraseRecorded = false;
+  const history = [];
+  const eraseRadius = 16;
   let pointerId = null;
   let stream = null;
   let landmarker = null;
@@ -41,7 +86,7 @@ export function createDrawing(onChange) {
       for (const [px,py] of stroke.slice(1)) ctx.lineTo(px * canvas.width, py * canvas.height);
       ctx.stroke();
     }
-    onChange(strokes.length);
+    onChange(strokes.length, history.length > 0 || strokes.length > 0);
   }
 
   new ResizeObserver(() => {
@@ -50,19 +95,55 @@ export function createDrawing(onChange) {
     paint();
   }).observe(canvas);
 
+  function eraseAt(point) {
+    const next = strokes.flatMap(stroke => {
+      const pieces = clipStroke(stroke, point, canvas.clientWidth, canvas.clientHeight, eraseRadius + 2);
+      if (pieces[0] !== stroke) {
+        for (const piece of pieces) sources.set(piece, sources.get(stroke));
+      }
+      return pieces;
+    });
+    if (next.length === strokes.length && next.every((stroke,i) => stroke === strokes[i])) return;
+    if (!eraseRecorded) {
+      history.push(strokes);
+      eraseRecorded = true;
+    }
+    strokes = next;
+  }
+
   function start(point, source) {
+    if (erasing) {
+      erasePoint = point;
+      eraseAt(point);
+      paint();
+      return;
+    }
+    history.push(strokes.slice());
     active = [point];
     strokes.push(active);
     sources.set(active, source);
     paint();
   }
   function add(point) {
+    if (erasePoint) {
+      const [x,y] = erasePoint;
+      const dx = point[0]-x;
+      const dy = point[1]-y;
+      const steps = Math.max(1,Math.ceil(Math.hypot(dx*canvas.clientWidth,dy*canvas.clientHeight)/(eraseRadius/2)));
+      for (let i = 1; i <= steps; i++) eraseAt([x+dx*i/steps,y+dy*i/steps]);
+      erasePoint = point;
+      if (eraseRecorded) paint();
+      return;
+    }
     const [x,y] = active.at(-1);
     if (Math.hypot((x - point[0]) * canvas.clientWidth, (y - point[1]) * canvas.clientHeight) < 3) return;
     active.push(point);
     paint();
   }
-  function finish() { active = null; }
+  function finish() {
+    active = erasePoint = null;
+    eraseRecorded = false;
+  }
 
   function coordinate(event) {
     const rect = canvas.getBoundingClientRect();
@@ -79,7 +160,7 @@ export function createDrawing(onChange) {
     start(coordinate(event), event.pointerType || 'mouse');
   });
   canvas.addEventListener('pointermove', event => {
-    if (event.pointerId === pointerId && active) add(coordinate(event));
+    if (event.pointerId === pointerId && (active || erasePoint)) add(coordinate(event));
   });
   for (const eventName of ['pointerup','pointercancel','lostpointercapture']) {
     canvas.addEventListener(eventName, event => {
@@ -122,7 +203,7 @@ export function createDrawing(onChange) {
               pinching = false;
               armed = true;
               pinchSince = null;
-            } else if (pinching && active) {
+            } else if (pinching && (active || erasePoint)) {
               add(smooth);
             } else if (armed && ratio < .30) {
               pinchSince ??= now;
@@ -137,7 +218,7 @@ export function createDrawing(onChange) {
             cursor.style.left = smooth[0] * 100 + '%';
             cursor.style.top = smooth[1] * 100 + '%';
             cursor.classList.toggle('inking', pinching);
-            inputStatus.textContent = pinching ? 'Drawing' : armed ? 'Hovering' : 'Separate thumb and index finger';
+            inputStatus.textContent = pinching ? (erasing ? 'Erasing' : 'Drawing') : armed ? 'Hovering' : 'Separate thumb and index finger';
           }
         } catch (error) {
           stopCamera();
@@ -210,11 +291,30 @@ export function createDrawing(onChange) {
     cursor.classList.remove('inking');
   }
 
+  eraserButton.addEventListener('click', () => {
+    resetPen();
+    erasing = !erasing;
+    eraserButton.setAttribute('aria-pressed', String(erasing));
+    cursor.classList.toggle('eraser-cursor', erasing);
+    canvas.classList.toggle('eraser-active', erasing);
+    inputStatus.textContent = erasing ? 'Eraser selected' : 'Pen selected';
+  });
+
   window.addEventListener('pagehide', stopCamera);
   return {
     get strokes() { return strokes; },
     sourceOf: stroke => sources.get(stroke),
-    replace(next) { resetPen(); strokes = next; paint(); },
-    undo() { resetPen(); strokes.pop(); paint(); }
+    replace(next) {
+      resetPen();
+      history.length = 0;
+      strokes = next;
+      paint();
+    },
+    undo() {
+      resetPen();
+      if (history.length) strokes = history.pop();
+      else strokes.pop();
+      paint();
+    }
   };
 }
