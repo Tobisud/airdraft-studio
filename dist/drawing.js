@@ -49,6 +49,7 @@ export function createDrawing(onChange) {
   const cameraStatus = byId('camera-status');
   const video = byId('video');
   const cursor = byId('cursor');
+  const eraserPreview = byId('eraser-preview');
   const drawingHelp = cameraStatus.textContent;
 
   let strokes = [];
@@ -59,6 +60,9 @@ export function createDrawing(onChange) {
   let eraseRecorded = false;
   const history = [];
   const eraseRadius = 16;
+  for (const ring of [cursor, eraserPreview]) {
+    ring.style.setProperty('--eraser-diameter', eraseRadius * 2 + 'px');
+  }
   let pointerId = null;
   let stream = null;
   let landmarker = null;
@@ -153,20 +157,49 @@ export function createDrawing(onChange) {
     ];
   }
 
+  function positionCursor(element, [x,y]) {
+    element.style.left = x * 100 + '%';
+    element.style.top = y * 100 + '%';
+  }
+
+  function showEraserPreview(point, pressed) {
+    positionCursor(eraserPreview, point);
+    eraserPreview.hidden = false;
+    eraserPreview.classList.toggle('inking', pressed);
+    cursor.hidden = true;
+  }
+
   canvas.addEventListener('pointerdown', event => {
     if (pointerId !== null || pinching || event.button !== 0) return;
     pointerId = event.pointerId;
     canvas.setPointerCapture(pointerId);
-    start(coordinate(event), event.pointerType || 'mouse');
+    const point = coordinate(event);
+    if (erasing) showEraserPreview(point, true);
+    start(point, event.pointerType || 'mouse');
   });
   canvas.addEventListener('pointermove', event => {
-    if (event.pointerId === pointerId && (active || erasePoint)) add(coordinate(event));
+    if (pointerId !== null && event.pointerId !== pointerId) return;
+    const pressed = event.pointerId === pointerId;
+    const point = coordinate(event);
+    if (erasing && !pinching && (pressed || event.pointerType !== 'touch')) {
+      showEraserPreview(point, pressed);
+    }
+    if (pressed && (active || erasePoint)) add(point);
+  });
+  canvas.addEventListener('pointerleave', () => {
+    if (pointerId === null) eraserPreview.hidden = true;
   });
   for (const eventName of ['pointerup','pointercancel','lostpointercapture']) {
     canvas.addEventListener(eventName, event => {
       if (event.pointerId !== pointerId) return;
       pointerId = null;
       finish();
+      if (erasing && eventName === 'pointerup' && event.pointerType !== 'touch' &&
+          document.elementFromPoint(event.clientX, event.clientY) === canvas) {
+        showEraserPreview(coordinate(event), false);
+      } else {
+        eraserPreview.hidden = true;
+      }
     });
   }
 
@@ -208,15 +241,15 @@ export function createDrawing(onChange) {
             } else if (armed && ratio < .30) {
               pinchSince ??= now;
               if (now - pinchSince >= 75) {
+                eraserPreview.hidden = true;
                 start(smooth, 'camera');
                 pinching = true;
               }
             } else {
               pinchSince = null;
             }
-            cursor.hidden = false;
-            cursor.style.left = smooth[0] * 100 + '%';
-            cursor.style.top = smooth[1] * 100 + '%';
+            cursor.hidden = !eraserPreview.hidden;
+            positionCursor(cursor, smooth);
             cursor.classList.toggle('inking', pinching);
             inputStatus.textContent = pinching ? (erasing ? 'Erasing' : 'Drawing') : armed ? 'Hovering' : 'Separate thumb and index finger';
           }
@@ -289,6 +322,7 @@ export function createDrawing(onChange) {
     pinching = armed = false;
     pinchSince = null;
     cursor.classList.remove('inking');
+    eraserPreview.hidden = true;
   }
 
   eraserButton.addEventListener('click', () => {

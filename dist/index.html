@@ -19,7 +19,7 @@
 <section class="workspace" aria-label="Drawing and model workspace">
 <article class="panel">
 <div class="bar"><h2>Sketch canvas</h2><button id="camera">Enable camera</button></div>
-<div class="surface sketch"><canvas id="sketch" aria-label="Drawing canvas"></canvas><button class="eraser-toggle" id="eraser" aria-pressed="false" title="Toggle eraser">Eraser</button><div id="cursor" hidden></div><video id="video" muted playsinline hidden></video><span class="tag" id="input">Pointer ready</span></div>
+<div class="surface sketch"><canvas id="sketch" aria-label="Drawing canvas"></canvas><button class="eraser-toggle" id="eraser" aria-pressed="false" title="Toggle eraser">Eraser</button><div id="cursor" hidden></div><div id="eraser-preview" class="eraser-cursor" aria-hidden="true" hidden></div><video id="video" muted playsinline hidden></video><span class="tag" id="input">Pointer ready</span></div>
 <div class="bar tools"><button id="sample">Load example</button><button id="undo" disabled>Undo</button><button id="clear" disabled>Clear</button></div>
 <p class="hint" id="camera-status" role="status">Draw with a mouse or touch. With camera on, pinch your thumb and index finger to draw.</p>
 </article>
