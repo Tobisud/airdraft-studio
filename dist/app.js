@@ -233,6 +233,7 @@ const wall = new THREE.MeshStandardMaterial({color:0x9475db,roughness:.6});
 const jointGeometry = new THREE.SphereGeometry(.055, 12, 8);
 const up = new THREE.Vector3(0,1,0);
 let model = null;
+let modelRevision = 0;
 
 function buildStrokes(paths, group) {
   for (const path of paths) {
@@ -296,10 +297,19 @@ function generate(label) {
   if (mode.value === 'house') buildHouse(paths.flat(),next,width*scale,height*scale);
   else buildStrokes(paths,next);
 
+  showModel(next, label);
+}
+
+function showModel(next, label) {
+  modelRevision++;
   if (model) {
     scene.remove(model);
     model.traverse(node => {
       if (node.geometry && node.geometry !== jointGeometry) node.geometry.dispose();
+      const materials = Array.isArray(node.material) ? node.material : [node.material];
+      for (const material of materials) {
+        if (material && material !== ink && material !== wall) material.dispose();
+      }
     });
   }
   model = next;
@@ -328,6 +338,32 @@ function loadExample() {
   generate('Example model');
 }
 byId('sample').addEventListener('click', loadExample);
+const aiExample = byId('ai-example');
+const aiStatus = byId('ai-status');
+aiExample.addEventListener('click', async () => {
+  const revision = modelRevision;
+  aiExample.disabled = true;
+  aiStatus.textContent = 'Loading the reconstructed mesh…';
+  try {
+    const {GLTFLoader} = await import('three/addons/loaders/GLTFLoader.js');
+    const {scene: mannequin} = await new GLTFLoader().loadAsync('./mannequin.glb');
+    const size = new THREE.Box3().setFromObject(mannequin).getSize(new THREE.Vector3());
+    mannequin.scale.multiplyScalar(3.8 / Math.max(size.x, size.y, size.z));
+    if (revision !== modelRevision) {
+      aiStatus.textContent = 'The preview changed. Select the AI example again to load it.';
+      return;
+    }
+    mannequin.name = 'AirDraft_Mannequin';
+    showModel(mannequin, 'AI mannequin · TripoSR');
+    aiStatus.textContent = 'Mannequin loaded. Drag the preview to rotate it.';
+    byId('model-panel').scrollIntoView({block:'nearest'});
+  } catch (error) {
+    aiStatus.textContent = 'Could not load the 3D preview. You can download the GLB directly.';
+    console.error(error);
+  } finally {
+    aiExample.disabled = false;
+  }
+});
 byId('undo').addEventListener('click', () => { finish(); strokes.pop(); paint(); });
 byId('clear').addEventListener('click', () => { finish(); strokes = []; paint(); });
 byId('generate').addEventListener('click', () => generate('Model ready'));

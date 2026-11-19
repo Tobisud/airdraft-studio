@@ -17,3 +17,7 @@ A static browser app that turns fingertip drawings into 3D geometry. Serve the `
 | Generate a reference and reconstruct | Condition Stable Diffusion 1.5 with ControlNet Scribble using the sketch and an object prompt → render one centered object with a clean background → remove background → run TripoSR on a GPU → inspect and export the predicted mesh. | [ControlNet Scribble](https://huggingface.co/lllyasviel/control_v11p_sd15_scribble), [TripoSR weights](https://huggingface.co/stabilityai/TripoSR) |
 
 The stroke model preserves freehand geometry in the sketch plane and adds thickness. The house uses the outline's bounds and roof peak to fit a solid with inferred depth. It does not model doors or windows. The alternative pipelines are implementation designs. For evaluation, record average frame time, pinch start/stop accuracy, and output fit across held-out sketches and lighting conditions.
+
+## AI mannequin example
+
+The bundled mannequin was reconstructed with TripoSR's public checkpoint from a generated front-view image guided by a smooth, featureless mannequin reference. The resulting single, watertight mesh was smoothed and assigned a matte white material. The preview loads the pre-generated GLB. Real-time generation from new sketches would require a separate inference backend.
