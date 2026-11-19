@@ -1,0 +1,34 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Sketch Collector · AirDraft Studio</title>
+<link rel="stylesheet" href="./style.css">
+<script type="module" src="./collect.js"></script>
+</head>
+<body>
+<header><div class="wrap nav"><a href="./" class="brand"><span class="mark">◇</span> AirDraft <b>Studio</b></a><a href="./">3D studio</a></div></header>
+<main class="wrap">
+<section class="intro collect-intro"><div><h1>Sketch <em>collector.</em></h1></div><p>Draw one object at a time. Save labeled strokes to build a training dataset.</p></section>
+<section class="workspace collect-workspace" aria-label="Training data collector">
+<article class="panel">
+<div class="bar"><h2>Drawing canvas</h2><button id="camera">Enable camera</button></div>
+<div class="surface sketch"><canvas id="sketch" aria-label="Drawing canvas"></canvas><div id="cursor" hidden></div><video id="video" muted playsinline hidden></video><span class="tag" id="input">Pointer ready</span></div>
+<div class="bar tools"><button id="undo" disabled>Undo stroke</button><button id="clear" disabled>Clear canvas</button></div>
+<p class="hint" id="camera-status" role="status">Use a mouse or touch, or enable the camera. Move your fingertip with your fingers apart to aim, then pinch to draw.</p>
+</article>
+<article class="panel dataset">
+<h2>Training dataset</h2>
+<label for="label">Drawing label</label>
+<select id="label"><option value="stickman">Stickman</option><option value="house">House</option><option value="fish">Fish</option><option value="bird">Bird</option><option value="tree">Tree</option><option value="flower">Flower</option></select>
+<button id="save" class="primary" disabled>Save sketch</button>
+<p id="collection-status" role="status">Saving clears the canvas for your next sketch.</p>
+<dl id="counts"></dl>
+<button id="export-data" disabled>Export dataset JSON</button>
+<p>Sketches are saved in this browser. Export a copy to keep them. Camera frames stay on your device and are never included.</p>
+</article>
+</section>
+</main>
+</body>
+</html>

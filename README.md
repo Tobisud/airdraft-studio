@@ -23,3 +23,9 @@ The stroke model preserves freehand geometry in the sketch plane and adds thickn
 The bundled mannequin was reconstructed with TripoSR's public checkpoint from a generated front-view image guided by a smooth, featureless mannequin reference. The resulting single, watertight mesh was smoothed and assigned a matte white material. The preview loads the pre-generated GLB. Real-time generation from new sketches would require a separate inference backend.
 
 The AI clay house uses the same TripoSR pipeline with a generated reference of a simple gabled house. House mode also applies rounded edges and a matte-white material directly to your own outlines in the browser.
+
+## Collect labeled sketches
+
+Open `collect.html` on the HTTPS site or a localhost preview. Allow camera access, move your index fingertip with your fingers apart to aim, then pinch your thumb and index finger to draw. Release to move between strokes. Mouse, pen, and touch are also supported.
+
+Choose the drawing's label and save it before starting the next sketch. Export the dataset as JSON. Each record contains a label, canvas dimensions, and ordered strokes with normalized coordinates and an input source. To rasterize at the original aspect ratio, multiply x by the saved canvas width and y by the saved height before fitting the bounding box into the training raster. The anonymous session ID helps group related sketches for splitting. Use different browser sessions for different drawers and keep each drawer's sessions together when evaluating. Camera frames are processed locally and are never saved in the dataset.
