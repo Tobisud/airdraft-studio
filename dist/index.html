@@ -1,0 +1,43 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="description" content="Draw with your index fingertip and turn your strokes into an interactive 3D model.">
+<title>AirDraft Studio</title>
+<link rel="stylesheet" href="./style.css">
+<script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.169.0/build/three.module.js","three/addons/":"https://cdn.jsdelivr.net/npm/three@0.169.0/examples/jsm/"}}</script>
+<script type="module" src="./app.js"></script>
+</head>
+<body>
+<header><div class="wrap nav"><a href="./" class="brand"><span class="mark">◇</span> AirDraft <b>Studio</b></a><a href="#pipelines">Pipelines &amp; models</a></div></header>
+<main class="wrap">
+<section class="intro">
+<h1>Draw in air.<br><em>Build in 3D.</em></h1>
+<p>Use your index fingertip as a pen, then turn your sketch into a 3D model you can rotate and export.</p>
+</section>
+<section class="workspace" aria-label="Drawing and model workspace">
+<article class="panel">
+<div class="bar"><h2>Sketch canvas</h2><button id="camera">Enable camera</button></div>
+<div class="surface sketch"><canvas id="sketch" aria-label="Drawing canvas"></canvas><div id="cursor" hidden></div><video id="video" muted playsinline hidden></video><span class="tag" id="input">Pointer ready</span></div>
+<div class="bar tools"><button id="sample">Load example</button><button id="undo" disabled>Undo</button><button id="clear" disabled>Clear</button></div>
+<p class="hint" id="camera-status" role="status">Draw with a mouse or touch. With camera on, pinch your thumb and index finger to draw.</p>
+</article>
+<article class="panel">
+<div class="bar"><h2>3D preview</h2><label class="sr" for="mode">Model type</label><select id="mode"><option value="tubes">Stick figure / strokes</option><option value="house">Simple house</option></select></div>
+<div class="surface preview" id="viewer" aria-label="Interactive 3D preview"><span class="tag" id="model-status" role="status">Example model</span></div>
+<div class="bar tools"><button class="primary" id="generate">Generate 3D</button><button id="export">Export OBJ</button></div>
+<p class="hint" id="mode-hint">Trace a head, torso, arms and legs. Drag to orbit and scroll or pinch to zoom.</p>
+</article>
+</section>
+<section id="pipelines" class="pipelines">
+<h2>Pipelines &amp; public models</h2>
+<div class="cards">
+<article><h3>Stroke geometry</h3><p>Track fingertip landmarks, smooth the cursor, and store each pinch as a polyline. Convert each stroke to connected cylinders and joints. For houses, fit a gable profile to the sketch and extrude a solid.</p><span class="badge">In this app</span><a href="https://ai.google.dev/edge/mediapipe/solutions/vision/hand_landmarker/web_js">MediaPipe Hand Landmarker</a></article>
+<article><h3>Template fitting</h3><p>Rasterize the strokes and classify the sketch if you need automatic routing. Fit a skeleton or a house template to detected corners, endpoints, and intersections. Add depth constraints for consistent, editable geometry.</p><a href="https://quickdraw.withgoogle.com/data">Quick, Draw! training data</a><br><a href="https://huggingface.co/timm/mobilenetv3_small_100.lamb_in1k">MobileNetV3 pretrained weights</a></article>
+<article><h3>Generative mesh</h3><p>Render the sketch to a clean reference image with an image-to-image model. Segment the subject, then run image-to-3D inference on a GPU server. Expect invented depth and test sparse sketches before committing.</p><a href="https://huggingface.co/lllyasviel/control_v11p_sd15_scribble">ControlNet Scribble</a><br><a href="https://github.com/VAST-AI-Research/TripoSR">TripoSR</a></article>
+</div>
+</section>
+</main>
+</body>
+</html>
