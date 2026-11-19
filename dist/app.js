@@ -61,7 +61,6 @@ const clay = new THREE.MeshStandardMaterial({color:0xfafafa,roughness:.82});
 const jointGeometry = new THREE.SphereGeometry(.055, 12, 8);
 const up = new THREE.Vector3(0,1,0);
 let model = null;
-let modelRevision = 0;
 
 function buildStrokes(paths, group) {
   for (const path of paths) {
@@ -146,15 +145,10 @@ function generate(label) {
 }
 
 function showModel(next, label) {
-  modelRevision++;
   if (model) {
     scene.remove(model);
     model.traverse(node => {
       if (node.geometry && node.geometry !== jointGeometry) node.geometry.dispose();
-      const materials = Array.isArray(node.material) ? node.material : [node.material];
-      for (const material of materials) {
-        if (material && material !== ink && material !== clay) material.dispose();
-      }
     });
   }
   model = next;
@@ -181,33 +175,6 @@ function loadExample() {
   generate('Example model');
 }
 byId('sample').addEventListener('click', loadExample);
-for (const button of document.querySelectorAll('[data-model-name]')) {
-  const message = byId(button.getAttribute('aria-describedby'));
-  button.addEventListener('click', async () => {
-    const revision = modelRevision;
-    button.disabled = true;
-    message.textContent = 'Loading the reconstructed mesh…';
-    try {
-      const {GLTFLoader} = await import('three/addons/loaders/GLTFLoader.js');
-      const {scene: sample} = await new GLTFLoader().loadAsync('./' + button.dataset.file);
-      if (revision !== modelRevision) {
-        message.textContent = 'The preview changed. Select the example again to load it.';
-        return;
-      }
-      const size = new THREE.Box3().setFromObject(sample).getSize(new THREE.Vector3());
-      sample.scale.multiplyScalar(3.8 / Math.max(size.x, size.y, size.z));
-      sample.name = button.dataset.modelName;
-      showModel(sample, button.dataset.modelLabel + ' · TripoSR');
-      message.textContent = 'Example loaded. Drag the preview to rotate it.';
-      byId('model-panel').scrollIntoView({block:'nearest'});
-    } catch (error) {
-      message.textContent = 'Could not load the 3D preview. You can download the GLB directly.';
-      console.error(error);
-    } finally {
-      button.disabled = false;
-    }
-  });
-}
 byId('undo').addEventListener('click', () => drawing.undo());
 byId('clear').addEventListener('click', () => drawing.replace([]));
 byId('generate').addEventListener('click', () => generate('Model ready'));

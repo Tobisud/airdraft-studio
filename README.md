@@ -18,12 +18,6 @@ A static browser app that turns fingertip drawings into 3D geometry. Serve the `
 
 The stroke model preserves freehand geometry in the sketch plane and adds thickness. The house uses the outline's bounds and roof peak to fit a solid with inferred depth. It does not model doors or windows. The alternative pipelines are implementation designs. For evaluation, record average frame time, pinch start/stop accuracy, and output fit across held-out sketches and lighting conditions.
 
-## AI mannequin example
-
-The bundled mannequin was reconstructed with TripoSR's public checkpoint from a generated front-view image guided by a smooth, featureless mannequin reference. The resulting single, watertight mesh was smoothed and assigned a matte white material. The preview loads the pre-generated GLB. Real-time generation from new sketches would require a separate inference backend.
-
-The AI clay house uses the same TripoSR pipeline with a generated reference of a simple gabled house. House mode also applies rounded edges and a matte-white material directly to your own outlines in the browser.
-
 ## Collect labeled sketches
 
 Open `collect.html` on the HTTPS site or a localhost preview. Allow camera access, move your index fingertip with your fingers apart to aim, then pinch your thumb and index finger to draw. Release to move between strokes. Mouse, pen, and touch are also supported.
