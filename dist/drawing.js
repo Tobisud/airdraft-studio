@@ -51,6 +51,9 @@ export function createDrawing(onChange) {
   const cursor = byId('cursor');
   const eraserPreview = byId('eraser-preview');
   const drawingHelp = cameraStatus.textContent;
+  const cameraDrawHelp = 'Pinch your thumb and index finger and hold to draw. Release to hover.';
+  const cameraEraseHelp = 'Pinch and hold over the sketch to erase inside the circle. Release to hover.';
+  const pointerEraseHelp = 'Drag the circle over the sketch to erase, or enable the camera to erase with a pinch.';
 
   let strokes = [];
   const sources = new WeakMap();
@@ -294,6 +297,12 @@ export function createDrawing(onChange) {
     cameraFrame = requestAnimationFrame(track);
   }
 
+  function updateToolHelp() {
+    cameraStatus.textContent = video.hidden
+      ? (erasing ? pointerEraseHelp : drawingHelp)
+      : (erasing ? cameraEraseHelp : cameraDrawHelp);
+  }
+
   function stopCamera() {
     stream?.getTracks().forEach(track => track.stop());
     stream = null;
@@ -307,7 +316,7 @@ export function createDrawing(onChange) {
     smooth = null;
     inputStatus.textContent = 'Pointer ready';
     cameraButton.textContent = 'Enable camera';
-    cameraStatus.textContent = drawingHelp;
+    updateToolHelp();
   }
 
   cameraButton.addEventListener('click', async () => {
@@ -332,7 +341,7 @@ export function createDrawing(onChange) {
       }
       video.hidden = false;
       cameraButton.textContent = 'Stop camera';
-      cameraStatus.textContent = 'Pinch your thumb and index finger and hold to draw. Release to hover.';
+      updateToolHelp();
       inputStatus.textContent = 'Show your hand';
       cameraLoop();
     } catch (error) {
@@ -362,6 +371,7 @@ export function createDrawing(onChange) {
     cursor.classList.toggle('eraser-cursor', erasing);
     canvas.classList.toggle('eraser-active', erasing);
     inputStatus.textContent = erasing ? 'Eraser selected' : 'Pen selected';
+    if (!cameraButton.disabled) updateToolHelp();
   });
 
   window.addEventListener('pagehide', stopCamera);
