@@ -1,0 +1,39 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Dataset Review · AirDraft Studio</title>
+<link rel="stylesheet" href="./style.css">
+<script type="module" src="./review.js"></script>
+</head>
+<body>
+<header><div class="wrap nav"><a href="./" class="brand"><span class="mark">◇</span> AirDraft <b>Studio</b></a><a href="./collect.html">Sketch collector</a></div></header>
+<main class="wrap">
+<section class="intro collect-intro"><h1>Review <em>sketches.</em></h1><p>Check the drawing against its label before using it for training.</p></section>
+<div class="workspace collect-workspace">
+<article class="panel">
+<div class="bar"><h2 id="sample-title">Drawing preview</h2></div>
+<div class="surface sketch"><canvas id="review-sketch" aria-label="Imported sketch"></canvas></div>
+<div class="bar tools"><button id="previous" disabled>Previous</button><button id="next" disabled>Next</button></div>
+</article>
+<article class="panel dataset review-controls">
+<h2>Dataset review</h2>
+<label for="dataset-file">Open exported JSON</label>
+<input id="dataset-file" type="file" accept=".json,application/json">
+<p id="review-status" role="status">Choose a file from the Sketch Collector.</p>
+<fieldset id="sample-controls" hidden>
+<legend>Label and decision</legend>
+<p id="original-label"></p>
+<label for="review-label">Correct label</label>
+<select id="review-label"><option value="stickman">Stickman</option><option value="house">House</option><option value="fish">Fish</option><option value="bird">Bird</option><option value="tree">Tree</option><option value="flower">Flower</option></select>
+<div class="review-actions"><button id="approve" class="primary">Approve sketch</button><button id="exclude">Exclude sketch</button></div>
+</fieldset>
+<p id="review-counts"></p>
+<button id="export-reviewed" disabled>Export reviewed JSON</button>
+<p>The export contains approved sketches only. Open and export files in this browser. Review decisions reset when you leave the page.</p>
+</article>
+</div>
+</main>
+</body>
+</html>
