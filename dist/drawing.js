@@ -70,6 +70,7 @@ export function createDrawing(onChange) {
   let pinching = false;
   let armed = false;
   let pinchSince = null;
+  let pinchOnEraser = false;
   let cameraFrame = null;
 
   function paint() {
@@ -203,6 +204,14 @@ export function createDrawing(onChange) {
     });
   }
 
+  function isOverEraser([x,y]) {
+    const area = canvas.getBoundingClientRect();
+    const button = eraserButton.getBoundingClientRect();
+    const px = area.left + x*area.width;
+    const py = area.top + y*area.height;
+    return px >= button.left && px <= button.right && py >= button.top && py <= button.bottom;
+  }
+
   function cameraLoop() {
     let lastTime = -1;
     function track(now) {
@@ -214,6 +223,7 @@ export function createDrawing(onChange) {
           if (!hand) {
             if (pinching) finish();
             cursor.hidden = true;
+            eraserButton.classList.remove('camera-hover');
             smooth = null;
             pinching = armed = false;
             pinchSince = null;
@@ -226,6 +236,8 @@ export function createDrawing(onChange) {
             const palm = distance(hand[0],hand[9]);
             const point = [clamp((.9-tip.x)/.8,0,1),clamp((tip.y-.1)/.8,0,1)];
             smooth = smooth ? smooth.map((value,i) => .58 * value + .42 * point[i]) : point;
+            const canTargetEraser = pointerId === null && palm > .015;
+            const overEraser = canTargetEraser && isOverEraser(smooth);
             const ratio = palm > .015 ? distance(tip,thumb)/palm : Infinity;
             if (palm <= .015 || pointerId !== null) {
               if (pinching) finish();
@@ -239,10 +251,14 @@ export function createDrawing(onChange) {
             } else if (pinching && (active || erasePoint)) {
               add(smooth);
             } else if (armed && ratio < .30) {
-              pinchSince ??= now;
+              if (pinchSince === null) {
+                pinchSince = now;
+                pinchOnEraser = overEraser || eraserButton.classList.contains('camera-hover');
+              }
               if (now - pinchSince >= 75) {
                 eraserPreview.hidden = true;
-                start(smooth, 'camera');
+                if (pinchOnEraser) eraserButton.click();
+                else start(smooth, 'camera');
                 pinching = true;
               }
             } else {
@@ -250,8 +266,18 @@ export function createDrawing(onChange) {
             }
             cursor.hidden = !eraserPreview.hidden;
             positionCursor(cursor, smooth);
-            cursor.classList.toggle('inking', pinching);
-            inputStatus.textContent = pinching ? (erasing ? 'Erasing' : 'Drawing') : armed ? 'Hovering' : 'Separate thumb and index finger';
+            const editing = Boolean(active || erasePoint);
+            cursor.classList.toggle('inking', pinching && editing);
+            eraserButton.classList.toggle('camera-hover', overEraser && !pinching);
+            if (pinching) {
+              inputStatus.textContent = editing
+                ? (erasing ? 'Erasing' : 'Drawing')
+                : (erasing ? 'Eraser selected' : 'Pen selected');
+            } else {
+              inputStatus.textContent = armed
+                ? (overEraser ? 'Pinch to toggle eraser' : 'Hovering')
+                : 'Separate thumb and index finger';
+            }
           }
         } catch (error) {
           stopCamera();
@@ -271,6 +297,7 @@ export function createDrawing(onChange) {
     cancelAnimationFrame(cameraFrame);
     video.srcObject = null;
     video.hidden = cursor.hidden = true;
+    eraserButton.classList.remove('camera-hover');
     if (pinching) finish();
     pinching = armed = false;
     pinchSince = null;

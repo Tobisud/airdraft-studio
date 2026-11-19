@@ -40,3 +40,4 @@ canvas{display:block;width:100%;height:100%;touch-action:none}
 .eraser-active{cursor:crosshair}
 #cursor.eraser-cursor,#eraser-preview{position:absolute;box-sizing:border-box;width:var(--eraser-diameter);height:var(--eraser-diameter);border:2px solid #ffd0a6;border-radius:50%;translate:-50% -50%;pointer-events:none;z-index:2;background:#ffd0a629;box-shadow:0 0 0 1px #141521,inset 0 0 0 1px #141521}
 #cursor.eraser-cursor.inking,#eraser-preview.inking{background:#ffd0a66b}
+.eraser-toggle.camera-hover{outline:2px solid #ffd0a6;outline-offset:3px}
