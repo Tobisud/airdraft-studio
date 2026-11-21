@@ -3,6 +3,7 @@ import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { OBJExporter } from 'three/addons/exporters/OBJExporter.js';
 
 import {createDrawing, clamp} from './drawing.js';
+import {buildClayFigure} from './clay-figure.js';
 
 const byId = id => document.getElementById(id);
 const canvas = byId('sketch');
@@ -57,31 +58,8 @@ try {
   console.warn('WebGL preview unavailable', error);
 }
 
-const ink = new THREE.MeshStandardMaterial({color:0xa88bfb,roughness:.38});
 const clay = new THREE.MeshStandardMaterial({color:0xfafafa,roughness:.82});
-const jointGeometry = new THREE.SphereGeometry(.055, 12, 8);
-const up = new THREE.Vector3(0,1,0);
 let model = null;
-
-function buildStrokes(paths, group) {
-  for (const path of paths) {
-    for (let i = 0; i < path.length; i++) {
-      const point = path[i];
-      const joint = new THREE.Mesh(jointGeometry, ink);
-      joint.position.copy(point);
-      group.add(joint);
-      if (i === 0) continue;
-      const previous = path[i-1];
-      const direction = point.clone().sub(previous);
-      const length = direction.length();
-      if (length < .0001) continue;
-      const segment = new THREE.Mesh(new THREE.CylinderGeometry(.055,.055,length,12),ink);
-      segment.position.copy(point).lerp(previous,.5);
-      segment.quaternion.setFromUnitVectors(up,direction.normalize());
-      group.add(segment);
-    }
-  }
-}
 
 function buildHouse(points, group, width, height) {
   const peak = points.reduce((highest,p) => p.y > highest.y ? p : highest);
@@ -138,9 +116,9 @@ function generate(label) {
     0
   )));
   const next = new THREE.Group();
-  next.name = mode.value === 'house' ? 'AirDraft_House' : 'AirDraft_Strokes';
+  next.name = mode.value === 'house' ? 'AirDraft_House' : 'AirDraft_Stickman';
   if (mode.value === 'house') buildHouse(paths.flat(),next,width*scale,height*scale);
-  else buildStrokes(paths,next);
+  else buildClayFigure(paths,next,clay);
 
   showModel(next, label);
 }
@@ -149,7 +127,7 @@ function showModel(next, label) {
   if (model) {
     scene.remove(model);
     model.traverse(node => {
-      if (node.geometry && node.geometry !== jointGeometry) node.geometry.dispose();
+      node.geometry?.dispose();
     });
   }
   model = next;
@@ -172,7 +150,12 @@ function showModel(next, label) {
 }
 
 function loadExample() {
-  drawing.replace(structuredClone(examples[mode.value]));
+  const sketch = structuredClone(examples[mode.value]);
+  if (mode.value === 'tubes') {
+    const aspect = canvas.clientWidth / canvas.clientHeight;
+    sketch[0] = sketch[0].map(([x,y]) => [.5+(x-.5)/Math.max(.5,aspect),y]);
+  }
+  drawing.replace(sketch);
   generate('Example model');
 }
 byId('sample').addEventListener('click', loadExample);
