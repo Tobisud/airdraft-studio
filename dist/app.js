@@ -60,8 +60,10 @@ try {
 
 const clay = new THREE.MeshStandardMaterial({color:0xfafafa,roughness:.82});
 let model = null;
+let defaultRig = null;
 let importedRig = null;
-let poseImportedRig = null;
+let poseRig = null;
+let lastFigurePaths = null;
 const rigFile = byId('rig-file');
 const rigStatus = byId('rig-status');
 const rigRemove = byId('rig-remove');
@@ -124,6 +126,7 @@ function generate(label) {
     const next = new THREE.Group();
     next.name = 'AirDraft_House';
     buildHouse(paths.flat(),next,width*scale,height*scale);
+    lastFigurePaths = null;
     showModel(next, label, false);
   } else {
     renderFigure(paths);
@@ -133,17 +136,19 @@ function generate(label) {
 function renderFigure(paths) {
   const next = new THREE.Group();
   next.name = 'AirDraft_Stickman';
-  const figure = importedRig ? recognizeFigure(paths) : buildClayFigure(paths,next,clay);
-  if (importedRig) {
+  lastFigurePaths = paths;
+  const rig = importedRig ?? defaultRig;
+  const figure = rig ? recognizeFigure(paths) : buildClayFigure(paths,next,clay);
+  if (rig) {
     next.name = 'AirDraft_Posed_Stickman';
-    next.add(poseImportedRig(importedRig,figure,clay));
+    next.add(poseRig(rig,figure,clay));
   }
-  let label = importedRig ? 'StickMan rest pose · draw a closed head' : 'Draw a closed head to fit a figure';
+  let label = rig ? 'StickMan rest pose · draw a closed head' : 'Draw a closed head to fit a figure';
   if (figure) {
     const {hip,arms,legs} = figure;
     const parts = ['Head',hip && 'torso',arms.length + (arms.length === 1 ? ' arm' : ' arms'),
       legs.length + (legs.length === 1 ? ' leg' : ' legs')].filter(Boolean);
-    label = importedRig && !hip ? 'StickMan rest pose · add body and limbs' : parts.join(' · ');
+    label = rig && !hip ? 'StickMan rest pose · add body and limbs' : parts.join(' · ');
   }
   showModel(next, label, true);
 }
@@ -194,7 +199,7 @@ rigFile.addEventListener('change', async () => {
     const nextRig = await readStickmanRig(await file.arrayBuffer());
     importedRig?.geometry.dispose();
     importedRig = nextRig;
-    poseImportedRig = poseStickman;
+    poseRig = poseStickman;
     rigStatus.textContent = 'Using ' + file.name + '. Generate 3D to apply your sketch.';
     if (mode.value === 'tubes' && drawing.strokes.length) generate('Model ready');
   } catch (error) {
@@ -208,9 +213,8 @@ rigFile.addEventListener('change', async () => {
 rigRemove.addEventListener('click', () => {
   importedRig?.geometry.dispose();
   importedRig = null;
-  poseImportedRig = null;
   rigRemove.disabled = true;
-  rigStatus.textContent = 'Using the built-in figure.';
+  rigStatus.textContent = defaultRig ? 'Using the default StickMan.' : 'Using the clay fallback.';
   if (mode.value === 'tubes' && drawing.strokes.length) generate('Model ready');
 });
 
@@ -235,3 +239,20 @@ mode.addEventListener('change', () => {
     : 'Draw a closed head, a body line, and two arms and legs. Drag the preview to rotate.';
 });
 loadExample();
+
+async function loadDefaultRig() {
+  try {
+    const [{readStickmanRig,poseStickman},response] = await Promise.all([
+      import('./stickman-rig.js'),
+      fetch('./assets/stickman-default.glb')
+    ]);
+    if (!response.ok) throw new Error('StickMan download failed (' + response.status + ').');
+    defaultRig = await readStickmanRig(await response.arrayBuffer());
+    poseRig = poseStickman;
+    if (!importedRig && mode.value === 'tubes' && lastFigurePaths) renderFigure(lastFigurePaths);
+  } catch (error) {
+    if (!importedRig) rigStatus.textContent = 'The default StickMan could not load. The clay preview is available.';
+    console.warn('Default StickMan unavailable',error);
+  }
+}
+loadDefaultRig();
