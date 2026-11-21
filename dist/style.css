@@ -46,7 +46,3 @@ canvas{display:block;width:100%;height:100%;touch-action:none}
 .review-controls fieldset{margin:15px 0 0;border:1px solid var(--line);border-radius:8px;padding:12px;min-width:0}
 .review-controls fieldset p{margin:0 0 7px}
 .review-controls #review-counts{margin-bottom:10px}
-.rig-picker{margin:0 14px 12px;padding:8px 10px;border:1px solid var(--line);border-radius:8px;font-size:14px}
-.rig-picker summary{cursor:pointer;color:var(--accent)}
-.rig-picker label,.rig-picker p{display:block;color:var(--muted);margin:8px 0 4px}
-.rig-picker input{width:100%;margin:3px 0 8px;font:inherit}

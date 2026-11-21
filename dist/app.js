@@ -61,12 +61,8 @@ try {
 const clay = new THREE.MeshStandardMaterial({color:0xfafafa,roughness:.82});
 let model = null;
 let defaultRig = null;
-let importedRig = null;
 let poseRig = null;
 let lastFigurePaths = null;
-const rigFile = byId('rig-file');
-const rigStatus = byId('rig-status');
-const rigRemove = byId('rig-remove');
 
 function buildHouse(points, group, width, height) {
   const peak = points.reduce((highest,p) => p.y > highest.y ? p : highest);
@@ -137,7 +133,7 @@ function renderFigure(paths) {
   const next = new THREE.Group();
   next.name = 'AirDraft_Stickman';
   lastFigurePaths = paths;
-  const rig = importedRig ?? defaultRig;
+  const rig = defaultRig;
   const figure = rig ? recognizeFigure(paths) : buildClayFigure(paths,next,clay);
   if (rig) {
     next.name = 'AirDraft_Posed_Stickman';
@@ -188,36 +184,6 @@ function loadExample() {
   drawing.replace(sketch);
   generate('Example model');
 }
-rigFile.addEventListener('change', async () => {
-  const file = rigFile.files[0];
-  if (!file) return;
-  rigFile.disabled = rigRemove.disabled = true;
-  rigStatus.textContent = 'Reading StickMan rig…';
-  try {
-    if (file.size > 8*1024*1024) throw new Error('Choose a StickMan GLB smaller than 8 MB.');
-    const {readStickmanRig,poseStickman} = await import('./stickman-rig.js');
-    const nextRig = await readStickmanRig(await file.arrayBuffer());
-    importedRig?.geometry.dispose();
-    importedRig = nextRig;
-    poseRig = poseStickman;
-    rigStatus.textContent = 'Using ' + file.name + '. Generate 3D to apply your sketch.';
-    if (mode.value === 'tubes' && drawing.strokes.length) generate('Model ready');
-  } catch (error) {
-    rigStatus.textContent = (importedRig ? 'Kept the previous rig. ' : '') + error.message;
-  } finally {
-    rigFile.disabled = false;
-    rigRemove.disabled = !importedRig;
-    rigFile.value = '';
-  }
-});
-rigRemove.addEventListener('click', () => {
-  importedRig?.geometry.dispose();
-  importedRig = null;
-  rigRemove.disabled = true;
-  rigStatus.textContent = defaultRig ? 'Using the default StickMan.' : 'Using the clay fallback.';
-  if (mode.value === 'tubes' && drawing.strokes.length) generate('Model ready');
-});
-
 byId('sample').addEventListener('click', loadExample);
 byId('undo').addEventListener('click', () => drawing.undo());
 byId('clear').addEventListener('click', () => drawing.replace([]));
@@ -233,7 +199,6 @@ byId('export').addEventListener('click', () => {
   setTimeout(() => URL.revokeObjectURL(url),1000);
 });
 mode.addEventListener('change', () => {
-  byId('rig-picker').hidden = mode.value === 'house';
   byId('mode-hint').textContent = mode.value === 'house'
     ? 'Draw a front view with straight walls and a peaked roof. The outline sets the house proportions.'
     : 'Draw a closed head, a body line, and two arms and legs. Drag the preview to rotate.';
@@ -249,9 +214,8 @@ async function loadDefaultRig() {
     if (!response.ok) throw new Error('StickMan download failed (' + response.status + ').');
     defaultRig = await readStickmanRig(await response.arrayBuffer());
     poseRig = poseStickman;
-    if (!importedRig && mode.value === 'tubes' && lastFigurePaths) renderFigure(lastFigurePaths);
+    if (mode.value === 'tubes' && lastFigurePaths) renderFigure(lastFigurePaths);
   } catch (error) {
-    if (!importedRig) rigStatus.textContent = 'The default StickMan could not load. The clay preview is available.';
     console.warn('Default StickMan unavailable',error);
   }
 }
