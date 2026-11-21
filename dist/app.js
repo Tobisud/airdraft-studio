@@ -118,12 +118,22 @@ function generate(label) {
   const next = new THREE.Group();
   next.name = mode.value === 'house' ? 'AirDraft_House' : 'AirDraft_Stickman';
   if (mode.value === 'house') buildHouse(paths.flat(),next,width*scale,height*scale);
-  else buildClayFigure(paths,next,clay);
+  else {
+    const figure = buildClayFigure(paths,next,clay);
+    if (figure) {
+      const {hip,arms,legs} = figure;
+      const parts = ['Head',hip && 'torso',arms.length + (arms.length === 1 ? ' arm' : ' arms'),
+        legs.length + (legs.length === 1 ? ' leg' : ' legs')].filter(Boolean);
+      label = parts.join(' · ');
+    } else {
+      label = 'Draw a closed head to fit a figure';
+    }
+  }
 
-  showModel(next, label);
+  showModel(next, label, mode.value === 'tubes');
 }
 
-function showModel(next, label) {
+function showModel(next, label, frontView) {
   if (model) {
     scene.remove(model);
     model.traverse(node => {
@@ -141,7 +151,7 @@ function showModel(next, label) {
     const halfVerticalFov = THREE.MathUtils.degToRad(view.fov/2);
     const aspect = viewer.clientWidth / viewer.clientHeight;
     const halfFov = Math.min(halfVerticalFov, Math.atan(Math.tan(halfVerticalFov) * aspect));
-    view.position.copy(center).add(new THREE.Vector3(.65,.33,1).normalize().multiplyScalar(radius/Math.sin(halfFov)));
+    view.position.copy(center).add(new THREE.Vector3(frontView ? .15 : .65,frontView ? .10 : .33,1).normalize().multiplyScalar(radius/Math.sin(halfFov)));
     controls.target.copy(center);
     controls.update();
   }
@@ -175,6 +185,6 @@ byId('export').addEventListener('click', () => {
 mode.addEventListener('change', () => {
   byId('mode-hint').textContent = mode.value === 'house'
     ? 'Draw a front view with straight walls and a peaked roof. The outline sets the house proportions.'
-    : 'Trace a head, torso, arms and legs. Drag to orbit and scroll or pinch to zoom.';
+    : 'Draw a closed head, a body line, and two arms and legs. Drag the preview to rotate.';
 });
 loadExample();
