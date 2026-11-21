@@ -3,7 +3,7 @@ import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { OBJExporter } from 'three/addons/exporters/OBJExporter.js';
 
 import {createDrawing, clamp} from './drawing.js';
-import {buildClayFigure} from './clay-figure.js';
+import {buildClayFigure, recognizeFigure} from './clay-figure.js';
 
 const byId = id => document.getElementById(id);
 const canvas = byId('sketch');
@@ -60,6 +60,11 @@ try {
 
 const clay = new THREE.MeshStandardMaterial({color:0xfafafa,roughness:.82});
 let model = null;
+let importedRig = null;
+let poseImportedRig = null;
+const rigFile = byId('rig-file');
+const rigStatus = byId('rig-status');
+const rigRemove = byId('rig-remove');
 
 function buildHouse(points, group, width, height) {
   const peak = points.reduce((highest,p) => p.y > highest.y ? p : highest);
@@ -128,13 +133,17 @@ function generate(label) {
 function renderFigure(paths) {
   const next = new THREE.Group();
   next.name = 'AirDraft_Stickman';
-  const figure = buildClayFigure(paths,next,clay);
-  let label = 'Draw a closed head to fit a figure';
+  const figure = importedRig ? recognizeFigure(paths) : buildClayFigure(paths,next,clay);
+  if (importedRig) {
+    next.name = 'AirDraft_Posed_Stickman';
+    next.add(poseImportedRig(importedRig,figure,clay));
+  }
+  let label = importedRig ? 'StickMan rest pose · draw a closed head' : 'Draw a closed head to fit a figure';
   if (figure) {
     const {hip,arms,legs} = figure;
     const parts = ['Head',hip && 'torso',arms.length + (arms.length === 1 ? ' arm' : ' arms'),
       legs.length + (legs.length === 1 ? ' leg' : ' legs')].filter(Boolean);
-    label = parts.join(' · ');
+    label = importedRig && !hip ? 'StickMan rest pose · add body and limbs' : parts.join(' · ');
   }
   showModel(next, label, true);
 }
@@ -174,6 +183,37 @@ function loadExample() {
   drawing.replace(sketch);
   generate('Example model');
 }
+rigFile.addEventListener('change', async () => {
+  const file = rigFile.files[0];
+  if (!file) return;
+  rigFile.disabled = rigRemove.disabled = true;
+  rigStatus.textContent = 'Reading StickMan rig…';
+  try {
+    if (file.size > 8*1024*1024) throw new Error('Choose a StickMan GLB smaller than 8 MB.');
+    const {readStickmanRig,poseStickman} = await import('./stickman-rig.js');
+    const nextRig = await readStickmanRig(await file.arrayBuffer());
+    importedRig?.geometry.dispose();
+    importedRig = nextRig;
+    poseImportedRig = poseStickman;
+    rigStatus.textContent = 'Using ' + file.name + '. Generate 3D to apply your sketch.';
+    if (mode.value === 'tubes' && drawing.strokes.length) generate('Model ready');
+  } catch (error) {
+    rigStatus.textContent = (importedRig ? 'Kept the previous rig. ' : '') + error.message;
+  } finally {
+    rigFile.disabled = false;
+    rigRemove.disabled = !importedRig;
+    rigFile.value = '';
+  }
+});
+rigRemove.addEventListener('click', () => {
+  importedRig?.geometry.dispose();
+  importedRig = null;
+  poseImportedRig = null;
+  rigRemove.disabled = true;
+  rigStatus.textContent = 'Using the built-in figure.';
+  if (mode.value === 'tubes' && drawing.strokes.length) generate('Model ready');
+});
+
 byId('sample').addEventListener('click', loadExample);
 byId('undo').addEventListener('click', () => drawing.undo());
 byId('clear').addEventListener('click', () => drawing.replace([]));
@@ -189,6 +229,7 @@ byId('export').addEventListener('click', () => {
   setTimeout(() => URL.revokeObjectURL(url),1000);
 });
 mode.addEventListener('change', () => {
+  byId('rig-picker').hidden = mode.value === 'house';
   byId('mode-hint').textContent = mode.value === 'house'
     ? 'Draw a front view with straight walls and a peaked roof. The outline sets the house proportions.'
     : 'Draw a closed head, a body line, and two arms and legs. Drag the preview to rotate.';
