@@ -62,16 +62,10 @@ export function recognizeFigure(paths) {
   };
 }
 
-export function buildClayFigure(paths, group, material, lengths = {}) {
+export function buildClayFigure(paths, group, material) {
   const figure = recognizeFigure(paths);
-  const stretch = ({anchor,bend,end}, factor) => ({
-    anchor,
-    bend: anchor.clone().lerp(bend,factor),
-    end: anchor.clone().lerp(end,factor)
-  });
-  const arms = figure?.arms.map(limb => stretch(limb,lengths.arm ?? 1)) ?? [];
-  const legs = figure?.legs.map(limb => stretch(limb,lengths.leg ?? 1)) ?? [];
-  const handLength = lengths.hand ?? 1;
+  const arms = figure?.arms ?? [];
+  const legs = figure?.legs ?? [];
   const extent = [...arms,...legs].reduce((max,{bend,end}) =>
     Math.max(max,Math.abs(bend.x),Math.abs(bend.y),Math.abs(end.x),Math.abs(end.y)),1.9);
   const halfExtent = Math.max(2.55,extent+.65);
@@ -138,8 +132,8 @@ export function buildClayFigure(paths, group, material, lengths = {}) {
         stamp(anchor,bend,trunk*.53);
         stamp(bend,end,trunk*.42);
         const direction = end.clone().sub(bend).normalize();
-        const palm = end.clone().addScaledVector(direction,trunk*.40*handLength);
-        const fingertips = end.clone().addScaledVector(direction,trunk*.88*handLength);
+        const palm = end.clone().addScaledVector(direction,trunk*.40);
+        const fingertips = end.clone().addScaledVector(direction,trunk*.88);
         stamp(end,palm,trunk*.40,1,1,.70);
         stamp(palm,fingertips,trunk*.32,1,1,.70);
         const thumb = palm.clone().addScaledVector(direction,-trunk*.15)
