@@ -59,6 +59,9 @@ try {
 }
 
 const clay = new THREE.MeshStandardMaterial({color:0xfafafa,roughness:.82});
+const houseGray = new THREE.MeshStandardMaterial({color:0xb8b8b8,roughness:.82});
+let houseTemplate = null;
+let houseLoading = null;
 let model = null;
 let defaultRig = null;
 let poseRig = null;
@@ -94,7 +97,59 @@ function buildHouse(points, group, width, height) {
     bevelSize:radius*.34, bevelSegments:6, curveSegments:8
   });
   geometry.translate(0,0,-depth/2);
-  group.add(new THREE.Mesh(geometry,clay));
+  group.add(new THREE.Mesh(geometry,houseGray));
+}
+
+function makeTemplateHouse(template, width, height) {
+  const house = new THREE.Group();
+  house.name = 'AirDraft_House';
+  const center = template.bounds.getCenter(new THREE.Vector3());
+  const size = template.bounds.getSize(new THREE.Vector3());
+  const depth = width * size.z/size.x;
+  house.scale.set(width/size.x,height/size.y,depth/size.z);
+  template.scene.traverse(node => {
+    if (!node.isMesh) return;
+    const geometry = node.geometry.clone().applyMatrix4(node.matrixWorld);
+    geometry.translate(-center.x,-center.y,-center.z);
+    const mesh = new THREE.Mesh(geometry,houseGray);
+    mesh.name = node.name;
+    house.add(mesh);
+  });
+  return house;
+}
+
+function loadHouseTemplate() {
+  if (!houseLoading) {
+    houseLoading = import('three/addons/loaders/GLTFLoader.js')
+      .then(async ({GLTFLoader}) => {
+        const {scene} = await new GLTFLoader().loadAsync('./assets/house-default.glb');
+        scene.updateMatrixWorld(true);
+        houseTemplate = {scene,bounds:new THREE.Box3().setFromObject(scene)};
+        return houseTemplate;
+      })
+      .catch(error => {
+        console.warn('House template unavailable',error);
+        return null;
+      })
+      .finally(() => { houseLoading = null; });
+  }
+  return houseLoading;
+}
+
+function renderHouse(paths, width, height, label) {
+  if (houseTemplate) {
+    showModel(makeTemplateHouse(houseTemplate,width,height),label,false);
+    return;
+  }
+  const fallback = new THREE.Group();
+  fallback.name = 'AirDraft_House';
+  buildHouse(paths.flat(),fallback,width,height);
+  showModel(fallback,'Loading house template…',false);
+  loadHouseTemplate().then(template => {
+    if (model !== fallback || mode.value !== 'house') return;
+    if (template) showModel(makeTemplateHouse(template,width,height),label,false);
+    else status.textContent = 'House template unavailable · simple preview';
+  });
 }
 
 function generate(label) {
@@ -119,11 +174,8 @@ function generate(label) {
     0
   )));
   if (mode.value === 'house') {
-    const next = new THREE.Group();
-    next.name = 'AirDraft_House';
-    buildHouse(paths.flat(),next,width*scale,height*scale);
     lastFigurePaths = null;
-    showModel(next, label, false);
+    renderHouse(paths,width*scale,height*scale,label);
   } else {
     renderFigure(paths);
   }
