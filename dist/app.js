@@ -60,6 +60,9 @@ try {
 
 const clay = new THREE.MeshStandardMaterial({color:0xfafafa,roughness:.82});
 let model = null;
+let lastFigurePaths = null;
+const figureControls = byId('figure-controls');
+const lengthInputs = Object.fromEntries(['arm','hand','leg'].map(name => [name,byId(name+'-length')]));
 
 function buildHouse(points, group, width, height) {
   const peak = points.reduce((highest,p) => p.y > highest.y ? p : highest);
@@ -115,22 +118,42 @@ function generate(label) {
     ((bounds.top+bounds.bottom)/2-y)*scale,
     0
   )));
-  const next = new THREE.Group();
-  next.name = mode.value === 'house' ? 'AirDraft_House' : 'AirDraft_Stickman';
-  if (mode.value === 'house') buildHouse(paths.flat(),next,width*scale,height*scale);
-  else {
-    const figure = buildClayFigure(paths,next,clay);
-    if (figure) {
-      const {hip,arms,legs} = figure;
-      const parts = ['Head',hip && 'torso',arms.length + (arms.length === 1 ? ' arm' : ' arms'),
-        legs.length + (legs.length === 1 ? ' leg' : ' legs')].filter(Boolean);
-      label = parts.join(' · ');
-    } else {
-      label = 'Draw a closed head to fit a figure';
-    }
+  if (mode.value === 'house') {
+    const next = new THREE.Group();
+    next.name = 'AirDraft_House';
+    buildHouse(paths.flat(),next,width*scale,height*scale);
+    lastFigurePaths = null;
+    figureControls.hidden = true;
+    showModel(next, label, false);
+  } else {
+    lastFigurePaths = paths;
+    renderFigure();
   }
+}
 
-  showModel(next, label, mode.value === 'tubes');
+function renderFigure() {
+  const next = new THREE.Group();
+  next.name = 'AirDraft_Stickman';
+  const lengths = Object.fromEntries(Object.entries(lengthInputs).map(([name,input]) => [name,input.valueAsNumber/100]));
+  const figure = buildClayFigure(lastFigurePaths,next,clay,lengths);
+  let label = 'Draw a closed head to fit a figure';
+  if (figure) {
+    const {hip,arms,legs} = figure;
+    const parts = ['Head',hip && 'torso',arms.length + (arms.length === 1 ? ' arm' : ' arms'),
+      legs.length + (legs.length === 1 ? ' leg' : ' legs')].filter(Boolean);
+    label = parts.join(' · ');
+  }
+  figureControls.hidden = !figure || !figure.hip;
+  lengthInputs.arm.disabled = lengthInputs.hand.disabled = !figure?.arms.length;
+  lengthInputs.leg.disabled = !figure?.legs.length;
+  showModel(next, label, true);
+}
+
+for (const [name,input] of Object.entries(lengthInputs)) {
+  input.addEventListener('input', () => { byId(name+'-value').value = input.value + '%'; });
+  input.addEventListener('change', () => {
+    if (lastFigurePaths && mode.value === 'tubes') renderFigure();
+  });
 }
 
 function showModel(next, label, frontView) {
@@ -183,6 +206,8 @@ byId('export').addEventListener('click', () => {
   setTimeout(() => URL.revokeObjectURL(url),1000);
 });
 mode.addEventListener('change', () => {
+  if (mode.value === 'house') figureControls.hidden = true;
+  else if (lastFigurePaths) renderFigure();
   byId('mode-hint').textContent = mode.value === 'house'
     ? 'Draw a front view with straight walls and a peaked roof. The outline sets the house proportions.'
     : 'Draw a closed head, a body line, and two arms and legs. Drag the preview to rotate.';

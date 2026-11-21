@@ -62,9 +62,20 @@ export function recognizeFigure(paths) {
   };
 }
 
-export function buildClayFigure(paths, group, material) {
-  const resolution = 80;
-  const halfExtent = 2.55;
+export function buildClayFigure(paths, group, material, lengths = {}) {
+  const figure = recognizeFigure(paths);
+  const stretch = ({anchor,bend,end}, factor) => ({
+    anchor,
+    bend: anchor.clone().lerp(bend,factor),
+    end: anchor.clone().lerp(end,factor)
+  });
+  const arms = figure?.arms.map(limb => stretch(limb,lengths.arm ?? 1)) ?? [];
+  const legs = figure?.legs.map(limb => stretch(limb,lengths.leg ?? 1)) ?? [];
+  const handLength = lengths.hand ?? 1;
+  const extent = [...arms,...legs].reduce((max,{bend,end}) =>
+    Math.max(max,Math.abs(bend.x),Math.abs(bend.y),Math.abs(end.x),Math.abs(end.y)),1.9);
+  const halfExtent = Math.max(2.55,extent+.65);
+  const resolution = Math.min(120,Math.ceil(80*halfExtent/2.55));
   const step = 2 * halfExtent / resolution;
   const surface = new MarchingCubes(resolution, material, false, false, 30000);
   const field = surface.field;
@@ -97,7 +108,6 @@ export function buildClayFigure(paths, group, material) {
     }
   }
 
-  const figure = recognizeFigure(paths);
   if (!figure) {
     for (const path of paths) {
       let previous = path[0];
@@ -109,26 +119,36 @@ export function buildClayFigure(paths, group, material) {
       stamp(previous,path.at(-1),.135);
     }
   } else {
-    const {head,neck,hip,shoulders,arms,legs} = figure;
-    const radius = Math.min(head.size.x,head.size.y)*.52;
-    stamp(head.center,head.center,radius,head.size.x*.52/radius,head.size.y*.52/radius,.93);
+    const {head,neck,hip,shoulders} = figure;
+    const length = hip ? neck.distanceTo(hip) : 0;
+    const radius = hip
+      ? THREE.MathUtils.clamp(length*.43,.32,.58)
+      : Math.min(head.size.x,head.size.y)*.52;
+    const face = hip ? neck.clone().add(new THREE.Vector3(0,radius*.88,0)) : head.center;
+    stamp(face,face,radius,.98,1.05,.94);
     if (hip) {
-      const length = neck.distanceTo(hip);
-      const trunk = THREE.MathUtils.clamp(length*.24,.21,.35);
-      const chest = neck.clone().lerp(hip,.38);
-      const pelvis = hip.clone().lerp(neck,.12);
-      stamp(neck,shoulders,.14);
-      stamp(shoulders,pelvis,trunk,1.08,1,.76);
-      stamp(chest,chest,trunk,1.25,1.24,.88);
-      stamp(pelvis,hip,trunk*.90,1.18,.90,.77);
+      const trunk = THREE.MathUtils.clamp(length*.25,.22,.36);
+      const chest = neck.clone().lerp(hip,.39);
+      const pelvis = hip.clone().lerp(neck,.11);
+      stamp(neck,shoulders,trunk*.55);
+      stamp(shoulders,pelvis,trunk,1.07,1,.77);
+      stamp(chest,chest,trunk,1.24,1.25,.88);
+      stamp(pelvis,hip,trunk*.91,1.18,.91,.79);
       for (const {anchor,bend,end} of arms) {
-        stamp(anchor,bend,.15);
-        stamp(bend,end,.12);
-        stamp(end,end,.133,1.1,.91,1);
+        stamp(anchor,bend,trunk*.53);
+        stamp(bend,end,trunk*.42);
+        const direction = end.clone().sub(bend).normalize();
+        const palm = end.clone().addScaledVector(direction,trunk*.40*handLength);
+        const fingertips = end.clone().addScaledVector(direction,trunk*.88*handLength);
+        stamp(end,palm,trunk*.40,1,1,.70);
+        stamp(palm,fingertips,trunk*.32,1,1,.70);
+        const thumb = palm.clone().addScaledVector(direction,-trunk*.15)
+          .add(new THREE.Vector3(0,-trunk*.33,trunk*.08));
+        stamp(palm,thumb,trunk*.18);
       }
       for (const {anchor,bend,end} of legs) {
-        stamp(anchor,bend,.18);
-        stamp(bend,end,.145);
+        stamp(anchor,bend,trunk*.65);
+        stamp(bend,end,trunk*.49);
         const foot = end.clone().add(new THREE.Vector3(0,.025,.10));
         stamp(foot,foot,.15,1.18,.76,1.64);
       }
