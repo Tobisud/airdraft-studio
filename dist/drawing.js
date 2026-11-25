@@ -1,5 +1,33 @@
 export const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
 
+// One Euro filter (Casiez et al., CHI 2012). It smooths strongly when the hand moves slowly,
+// where tracking jitter is most visible, and lightly when it moves fast, so the pen keeps up.
+// minCutoff: lower = steadier when still. beta: higher = less lag on fast moves.
+function oneEuroFilter({minCutoff = 1, beta = 6, derivativeCutoff = 1} = {}) {
+  let last = null;
+  let lastTime = 0;
+  let speed = [0, 0];
+  const alpha = (cutoff, seconds) => 1 / (1 + 1 / (2 * Math.PI * cutoff * seconds));
+  return {
+    reset() { last = null; },
+    filter(point, time) {
+      if (!last) {
+        last = point;
+        lastTime = time;
+        speed = [0, 0];
+        return point;
+      }
+      const seconds = Math.max((time - lastTime) / 1000, 1e-3);
+      lastTime = time;
+      const a = alpha(derivativeCutoff, seconds);
+      speed = point.map((value, i) => a * (value - last[i]) / seconds + (1 - a) * speed[i]);
+      const b = alpha(minCutoff + beta * Math.hypot(...speed), seconds);
+      last = point.map((value, i) => b * value + (1 - b) * last[i]);
+      return last;
+    }
+  };
+}
+
 // Clip each centerline segment against a circle in screen pixels.
 function clipStroke(stroke, center, width, height, radius) {
   const offset = ([x,y]) => [(x-center[0])*width,(y-center[1])*height];
@@ -51,7 +79,7 @@ export function createDrawing(onChange) {
   const cursor = byId('cursor');
   const eraserPreview = byId('eraser-preview');
   const drawingHelp = cameraStatus.textContent;
-  const cameraDrawHelp = 'Pinch your thumb and index finger and hold to draw. Release to hover.';
+  const cameraDrawHelp = 'The pen sits between your thumb and index fingertip. Pinch and hold to draw. Open clearly to lift the pen.';
   const cameraEraseHelp = 'Pinch and hold over the sketch to erase inside the circle. Release to hover.';
   const pointerEraseHelp = 'Drag the circle over the sketch to erase, or enable the camera to erase with a pinch.';
 
@@ -66,6 +94,9 @@ export function createDrawing(onChange) {
   const pinchStartRatio = .18;
   const pinchReleaseRatio = .25;
   const eraserToggleHoldMs = 75;
+  // A pinch must stay open (or the hand stay lost) this long before a stroke ends,
+  // so a one-frame tracking glitch does not cut a stroke in two.
+  const releaseGraceMs = 100;
   for (const ring of [cursor, eraserPreview]) {
     ring.style.setProperty('--eraser-diameter', eraseRadius * 2 + 'px');
   }
@@ -73,6 +104,9 @@ export function createDrawing(onChange) {
   let stream = null;
   let landmarker = null;
   let smooth = null;
+  const smoother = oneEuroFilter();
+  let gapSince = null;
+  let pending = [];
   let pinching = false;
   let armed = false;
   let pinchSince = null;
@@ -218,6 +252,26 @@ export function createDrawing(onChange) {
     return px >= button.left && px <= button.right && py >= button.top && py <= button.bottom;
   }
 
+  function endPinch() {
+    if (pinching) finish();
+    pinching = false;
+    gapSince = null;
+    pending = [];
+  }
+
+  // Called when the pinch looks open or the hand is lost. During the grace period the stroke
+  // stays open and points are held back; if the pinch comes back they are drawn, otherwise dropped.
+  function holdStroke(now, point) {
+    if (!pinching) return false;
+    gapSince ??= now;
+    if (now - gapSince > releaseGraceMs) {
+      endPinch();
+      return false;
+    }
+    if (point) pending.push(point);
+    return true;
+  }
+
   function cameraLoop() {
     let lastTime = -1;
     function track(now) {
@@ -226,36 +280,46 @@ export function createDrawing(onChange) {
         lastTime = video.currentTime;
         try {
           const hand = landmarker.detectForVideo(video, now).landmarks[0];
-          if (!hand) {
-            if (pinching) finish();
-            cursor.hidden = true;
-            eraserButton.classList.remove('camera-hover');
-            smooth = null;
-            pinching = armed = false;
-            pinchSince = null;
-            inputStatus.textContent = 'Show your hand';
+          const aspect = video.videoWidth / video.videoHeight;
+          const distance = (a,b) => Math.hypot((a.x-b.x)*aspect,a.y-b.y);
+          const palm = hand ? distance(hand[0],hand[9]) : 0;
+          if (!hand || palm <= .015) {
+            if (!holdStroke(now, null)) {
+              cursor.hidden = true;
+              eraserButton.classList.remove('camera-hover');
+              smooth = null;
+              smoother.reset();
+              armed = false;
+              pinchSince = null;
+              inputStatus.textContent = 'Show your hand';
+            }
           } else {
             const tip = hand[8];
             const thumb = hand[4];
-            const aspect = video.videoWidth / video.videoHeight;
-            const distance = (a,b) => Math.hypot((a.x-b.x)*aspect,a.y-b.y);
-            const palm = distance(hand[0],hand[9]);
-            const point = [clamp((.9-tip.x)/.8,0,1),clamp((tip.y-.1)/.8,0,1)];
-            smooth = smooth ? smooth.map((value,i) => .45 * value + .55 * point[i]) : point;
-            const canTargetEraser = pointerId === null && palm > .015;
+            // The pen sits midway between the thumb tip and index tip. That point barely moves
+            // when the fingers close or open, so strokes don't get a hook at the start or end.
+            const pen = {x: (tip.x + thumb.x) / 2, y: (tip.y + thumb.y) / 2};
+            const point = [clamp((.9-pen.x)/.8,0,1),clamp((pen.y-.1)/.8,0,1)];
+            smooth = smoother.filter(point, now);
+            const canTargetEraser = pointerId === null;
             const overEraser = canTargetEraser && isOverEraser(smooth);
-            const ratio = palm > .015 ? distance(tip,thumb)/palm : Infinity;
-            if (palm <= .015 || pointerId !== null) {
-              if (pinching) finish();
-              armed = pinching = false;
+            const ratio = distance(tip,thumb)/palm;
+            if (pointerId !== null) {
+              endPinch();
+              armed = false;
               pinchSince = null;
             } else if (ratio >= pinchReleaseRatio) {
-              if (pinching) finish();
-              pinching = false;
-              armed = true;
-              pinchSince = null;
-            } else if (pinching && (active || erasePoint)) {
-              add(smooth);
+              if (!holdStroke(now, smooth)) {
+                armed = true;
+                pinchSince = null;
+              }
+            } else if (pinching) {
+              if (active || erasePoint) {
+                for (const held of pending) add(held);
+                add(smooth);
+              }
+              pending = [];
+              gapSince = null;
             } else if (armed && ratio < pinchStartRatio) {
               if (pinchSince === null) {
                 pinchSince = now;
@@ -310,10 +374,11 @@ export function createDrawing(onChange) {
     video.srcObject = null;
     video.hidden = cursor.hidden = true;
     eraserButton.classList.remove('camera-hover');
-    if (pinching) finish();
-    pinching = armed = false;
+    endPinch();
+    armed = false;
     pinchSince = null;
     smooth = null;
+    smoother.reset();
     inputStatus.textContent = 'Pointer ready';
     cameraButton.textContent = 'Enable camera';
     updateToolHelp();
@@ -360,6 +425,8 @@ export function createDrawing(onChange) {
     pointerId = null;
     pinching = armed = false;
     pinchSince = null;
+    gapSince = null;
+    pending = [];
     cursor.classList.remove('inking');
     eraserPreview.hidden = true;
   }
