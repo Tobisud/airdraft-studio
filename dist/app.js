@@ -4,6 +4,7 @@ import { OBJExporter } from 'three/addons/exporters/OBJExporter.js';
 
 import {createDrawing, clamp} from './drawing.js';
 import {buildClayFigure, recognizeFigure} from './clay-figure.js';
+import {fitTemplate, TEMPLATE_KINDS} from './template-fit.js';
 
 const byId = id => document.getElementById(id);
 const canvas = byId('sketch');
@@ -29,6 +30,44 @@ const examples = {
     [[.29,.46],[.5,.23],[.71,.46],[.71,.77],[.29,.77],[.29,.46]]
   ]
 };
+// Example sketches for the template classes. Shapes are in canvas-height units; x offsets are
+// divided by the canvas aspect ratio so circles stay round on a wide canvas.
+function templateExample(kind, aspect) {
+  const at = (cx, cy) => ([dx, dy]) => [cx + dx / aspect, cy + dy];
+  const loop = (cx, cy, rx, ry, {turn = 0, wobble = 0, bumps = 0, n = 36} = {}) =>
+    Array.from({length: n + 1}, (_, i) => {
+      const a = i / n * 2 * Math.PI;
+      const r = 1 + wobble * Math.cos(bumps * a);
+      const x = rx * r * Math.cos(a), y = ry * r * Math.sin(a);
+      return at(cx, cy)([x * Math.cos(turn) - y * Math.sin(turn), x * Math.sin(turn) + y * Math.cos(turn)]);
+    });
+  const line = (cx, cy, points) => points.map(at(cx, cy));
+  if (kind === 'fish') return [
+    loop(.46, .5, .2, .12),
+    line(.46, .5, [[.19, 0], [.33, -.11], [.29, 0], [.33, .11], [.19, 0]]),
+    line(.46, .5, [[-.06, -.115], [0, -.19], [.08, -.11]])
+  ];
+  if (kind === 'bird') {
+    const wing = [[-.02, .03], [-.06, -.03], [-.11, -.08], [-.16, -.09], [-.21, -.05], [-.26, .0], [-.32, .04]];
+    return [line(.5, .48, wing), line(.5, .48, wing.map(([x, y]) => [-x, y]))];
+  }
+  if (kind === 'tree') return [
+    loop(.5, .35, .2, .17, {wobble: .07, bumps: 7, n: 60}),
+    line(.5, .35, [[-.04, .16], [-.045, .3], [-.055, .45]]),
+    line(.5, .35, [[.04, .16], [.045, .3], [.055, .45]])
+  ];
+  if (kind === 'flower') return [
+    loop(.5, .27, .035, .035),
+    ...Array.from({length: 6}, (_, i) => {
+      const a = i / 6 * 2 * Math.PI;
+      return loop(.5 + .085 * Math.cos(a) / aspect, .27 + .085 * Math.sin(a), .05, .028, {turn: a});
+    }),
+    line(.5, .36, [[0, 0], [-.01, .15], [.005, .3], [0, .48]]),
+    line(.5, .62, [[0, 0], [-.04, -.04], [-.1, -.05], [-.05, -.005], [0, 0]]),
+    line(.5, .52, [[0, 0], [.04, -.04], [.1, -.05], [.05, -.005], [0, 0]])
+  ];
+}
+
 const scene = new THREE.Scene();
 const view = new THREE.PerspectiveCamera(39, 1, .01, 100);
 const grid = new THREE.GridHelper(12, 24, 0x61567f, 0x3a3551);
@@ -66,6 +105,9 @@ let model = null;
 let defaultRig = null;
 let poseRig = null;
 let lastFigurePaths = null;
+const templates = {};
+const templateLoading = {};
+let lastTemplatePaths = null;
 
 function buildHouse(points, group, width, height) {
   const peak = points.reduce((highest,p) => p.y > highest.y ? p : highest);
@@ -152,6 +194,36 @@ function renderHouse(paths, width, height, label) {
   });
 }
 
+function loadTemplate(kind) {
+  templateLoading[kind] ??= import('three/addons/loaders/GLTFLoader.js')
+    .then(({GLTFLoader}) => new GLTFLoader().loadAsync(`./assets/${kind}.glb`))
+    .then(({scene}) => (templates[kind] = scene))
+    .catch(error => {
+      console.warn(`${kind} template unavailable`, error);
+      delete templateLoading[kind];
+      return null;
+    });
+  return templateLoading[kind];
+}
+
+function renderTemplate(kind, paths) {
+  lastTemplatePaths = paths;
+  const show = template => {
+    const {model: fitted, label} = fitTemplate(kind, template, paths, clay);
+    showModel(fitted, label, true);
+  };
+  if (templates[kind]) {
+    show(templates[kind]);
+    return;
+  }
+  status.textContent = `Loading ${kind} template…`;
+  loadTemplate(kind).then(template => {
+    if (mode.value !== kind || lastTemplatePaths !== paths) return;
+    if (template) show(template);
+    else status.textContent = `${kind[0].toUpperCase() + kind.slice(1)} template unavailable`;
+  });
+}
+
 function generate(label) {
   const strokes = drawing.strokes;
   const points = strokes.flat();
@@ -176,6 +248,9 @@ function generate(label) {
   if (mode.value === 'house') {
     lastFigurePaths = null;
     renderHouse(paths,width*scale,height*scale,label);
+  } else if (TEMPLATE_KINDS.includes(mode.value)) {
+    lastFigurePaths = null;
+    renderTemplate(mode.value, paths);
   } else {
     renderFigure(paths);
   }
@@ -228,9 +303,11 @@ function showModel(next, label, frontView) {
 }
 
 function loadExample() {
-  const sketch = structuredClone(examples[mode.value]);
+  const aspect = canvas.clientWidth / canvas.clientHeight;
+  const sketch = TEMPLATE_KINDS.includes(mode.value)
+    ? templateExample(mode.value, Math.max(.5, aspect))
+    : structuredClone(examples[mode.value]);
   if (mode.value === 'tubes') {
-    const aspect = canvas.clientWidth / canvas.clientHeight;
     sketch[0] = sketch[0].map(([x,y]) => [.5+(x-.5)/Math.max(.5,aspect),y]);
   }
   drawing.replace(sketch);
@@ -250,10 +327,17 @@ byId('export').addEventListener('click', () => {
   link.click();
   setTimeout(() => URL.revokeObjectURL(url),1000);
 });
+const modeHints = {
+  tubes: 'Draw a closed head, a body line, and two arms and legs. Drag the preview to rotate.',
+  house: 'Draw a front view with straight walls and a peaked roof. The outline sets the house proportions.',
+  fish: 'Draw a side view: a closed body and a tail on one side. The tail side sets which way the fish faces.',
+  bird: 'Draw a flying bird from the front, like an "M", with one stroke per wing. The bends set the wing angles.',
+  tree: 'Draw a closed crown on top and a trunk below. Their sizes set the tree.',
+  flower: 'Draw a stem, a bloom with 3 to 8 petals, and up to two leaves. The petal count and stem height set the flower.'
+};
 mode.addEventListener('change', () => {
-  byId('mode-hint').textContent = mode.value === 'house'
-    ? 'Draw a front view with straight walls and a peaked roof. The outline sets the house proportions.'
-    : 'Draw a closed head, a body line, and two arms and legs. Drag the preview to rotate.';
+  byId('mode-hint').textContent = modeHints[mode.value];
+  if (TEMPLATE_KINDS.includes(mode.value)) loadTemplate(mode.value);
 });
 loadExample();
 
