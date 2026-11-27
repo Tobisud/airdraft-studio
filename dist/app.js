@@ -5,15 +5,26 @@ import { OBJExporter } from 'three/addons/exporters/OBJExporter.js';
 import {createDrawing, clamp} from './drawing.js';
 import {buildClayFigure, recognizeFigure} from './clay-figure.js';
 import {fitTemplate, TEMPLATE_KINDS} from './template-fit.js';
+import {classifySketch} from './sketch-classifier.js';
 
 const byId = id => document.getElementById(id);
 const canvas = byId('sketch');
 const viewer = byId('viewer');
 const mode = byId('mode');
 const status = byId('model-status');
+const prediction = byId('prediction');
+const classNames = {stickman:'Stick figure',house:'House',fish:'Fish',bird:'Bird',tree:'Tree',flower:'Flower'};
+let generation = 0;
+let activeKind = null;
+let nextExample = 0;
+let predictedStrokes = null;
 const drawing = createDrawing((count, canUndo) => {
   byId('undo').disabled = !canUndo;
   byId('clear').disabled = count === 0;
+  if (predictedStrokes !== null && JSON.stringify(drawing.strokes) !== predictedStrokes) {
+    prediction.hidden = true;
+    predictedStrokes = null;
+  }
 });
 
 const examples = {
@@ -188,7 +199,7 @@ function renderHouse(paths, width, height, label) {
   buildHouse(paths.flat(),fallback,width,height);
   showModel(fallback,'Loading house template…',false);
   loadHouseTemplate().then(template => {
-    if (model !== fallback || mode.value !== 'house') return;
+    if (model !== fallback || activeKind !== 'house') return;
     if (template) showModel(makeTemplateHouse(template,width,height),label,false);
     else status.textContent = 'House template unavailable · simple preview';
   });
@@ -218,24 +229,53 @@ function renderTemplate(kind, paths) {
   }
   status.textContent = `Loading ${kind} template…`;
   loadTemplate(kind).then(template => {
-    if (mode.value !== kind || lastTemplatePaths !== paths) return;
+    if (activeKind !== kind || lastTemplatePaths !== paths) return;
     if (template) show(template);
     else status.textContent = `${kind[0].toUpperCase() + kind.slice(1)} template unavailable`;
   });
 }
 
-function generate(label) {
-  const strokes = drawing.strokes;
+async function generate(label) {
+  const request = ++generation;
+  activeKind = null;
+  lastTemplatePaths = lastFigurePaths = null;
+  prediction.hidden = true;
+  predictedStrokes = null;
+  const strokes = structuredClone(drawing.strokes);
   const points = strokes.flat();
   if (!points.length) { status.textContent = 'Draw or load an example first'; return; }
-  const aspect = canvas.clientWidth / canvas.clientHeight;
+  const canvasWidth = canvas.clientWidth;
+  const canvasHeight = canvas.clientHeight;
+  const aspect = canvasWidth/canvasHeight;
+  let kind = mode.value;
+  if (kind === 'auto') {
+    status.textContent = 'Classifying sketch…';
+    try {
+      const result = await classifySketch(strokes,canvasWidth,canvasHeight);
+      if (request !== generation) return;
+      if (JSON.stringify(strokes) !== JSON.stringify(drawing.strokes)) {
+        status.textContent = 'Sketch changed · generate again';
+        return;
+      }
+      predictedStrokes = JSON.stringify(strokes);
+      prediction.hidden = false;
+      prediction.textContent = 'CNN prediction: ' + classNames[result.label] + ' · '
+        + Math.round(100*result.score) + '% model score'
+        + (result.score < .65 ? ' · low score' : '');
+      kind = result.label === 'stickman' ? 'tubes' : result.label;
+    } catch (error) {
+      if (request === generation) status.textContent = error.message;
+      return;
+    }
+  }
+  activeKind = kind;
   const bounds = points.reduce((box,[x,y]) => ({
     left:Math.min(box.left,x), right:Math.max(box.right,x),
     top:Math.min(box.top,y), bottom:Math.max(box.bottom,y)
   }), {left:1,right:0,top:1,bottom:0});
   const width = (bounds.right-bounds.left)*aspect;
   const height = bounds.bottom-bounds.top;
-  if (mode.value === 'house' && (width < .06 || height < .06)) {
+  if (kind === 'house' && (width < .06 || height < .06)) {
     status.textContent = 'Draw a wider and taller house outline';
     return;
   }
@@ -245,12 +285,12 @@ function generate(label) {
     ((bounds.top+bounds.bottom)/2-y)*scale,
     0
   )));
-  if (mode.value === 'house') {
+  if (kind === 'house') {
     lastFigurePaths = null;
     renderHouse(paths,width*scale,height*scale,label);
-  } else if (TEMPLATE_KINDS.includes(mode.value)) {
+  } else if (TEMPLATE_KINDS.includes(kind)) {
     lastFigurePaths = null;
-    renderTemplate(mode.value, paths);
+    renderTemplate(kind, paths);
   } else {
     renderFigure(paths);
   }
@@ -304,10 +344,12 @@ function showModel(next, label, frontView) {
 
 function loadExample() {
   const aspect = canvas.clientWidth / canvas.clientHeight;
-  const sketch = TEMPLATE_KINDS.includes(mode.value)
-    ? templateExample(mode.value, Math.max(.5, aspect))
-    : structuredClone(examples[mode.value]);
-  if (mode.value === 'tubes') {
+  const kinds = ['tubes','house',...TEMPLATE_KINDS];
+  const kind = mode.value === 'auto' ? kinds[nextExample++ % kinds.length] : mode.value;
+  const sketch = TEMPLATE_KINDS.includes(kind)
+    ? templateExample(kind, Math.max(.5, aspect))
+    : structuredClone(examples[kind]);
+  if (kind === 'tubes') {
     sketch[0] = sketch[0].map(([x,y]) => [.5+(x-.5)/Math.max(.5,aspect),y]);
   }
   drawing.replace(sketch);
@@ -328,6 +370,7 @@ byId('export').addEventListener('click', () => {
   setTimeout(() => URL.revokeObjectURL(url),1000);
 });
 const modeHints = {
+  auto: 'Draw a stick figure, house, fish, bird, tree, or flower. Auto detect uses the trained small CNN to choose a 3D template.',
   tubes: 'Draw a closed head, a body line, and two arms and legs. Drag the preview to rotate.',
   house: 'Draw a front view with straight walls and a peaked roof. The outline sets the house proportions.',
   fish: 'Draw a side view: a closed body and a tail on one side. The tail side sets which way the fish faces.',
@@ -336,10 +379,14 @@ const modeHints = {
   flower: 'Draw a stem, a bloom with 3 to 8 petals, and up to two leaves. The petal count and stem height set the flower.'
 };
 mode.addEventListener('change', () => {
+  generation++;
+  activeKind = null;
+  prediction.hidden = true;
+  predictedStrokes = null;
+  status.textContent = 'Select Generate 3D';
   byId('mode-hint').textContent = modeHints[mode.value];
   if (TEMPLATE_KINDS.includes(mode.value)) loadTemplate(mode.value);
 });
-loadExample();
 
 async function loadDefaultRig() {
   try {
@@ -350,7 +397,7 @@ async function loadDefaultRig() {
     if (!response.ok) throw new Error('StickMan download failed (' + response.status + ').');
     defaultRig = await readStickmanRig(await response.arrayBuffer());
     poseRig = poseStickman;
-    if (mode.value === 'tubes' && lastFigurePaths) renderFigure(lastFigurePaths);
+    if (activeKind === 'tubes' && lastFigurePaths) renderFigure(lastFigurePaths);
   } catch (error) {
     console.warn('Default StickMan unavailable',error);
   }

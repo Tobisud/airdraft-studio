@@ -4,9 +4,9 @@ A static browser app that turns fingertip drawings into 3D geometry. Serve the `
 
 ## Try it
 
-1. Select a model type and choose **Load example**, or clear the canvas and make your own sketch.
+1. Leave the model type on **Auto detect** and draw one of the six supported objects, or click **Load example**. Selecting an explicit type skips classification.
 2. For webcam input, enable the camera, show one hand, and pinch your index finger to your thumb to draw. Release to lift the pen. Mouse and touch work without a camera.
-3. Generate the model, drag to orbit, and export an OBJ for Blender or another model editor.
+3. Click **Generate 3D**. In Auto detect mode, a 64×64 classifier predicts the category and displays its model score. Drag to orbit, or export an OBJ.
 
 ## Pipeline options
 
@@ -27,3 +27,7 @@ Choose the drawing's label and save it before starting the next sketch. Export t
 ## Python desktop version
 
 See [the Python setup guide](python/README.md) for the OpenCV and MediaPipe desktop app.
+
+## Browser classifier
+
+Auto detect uses the AirDraft six-class CNN checkpoint. `scripts/export_sketch_cnn.py` folds batch normalization into the convolution weights and exports the browser asset. Run it with PyTorch and the trained checkpoint using `python scripts/export_sketch_cnn.py sketch-cnn.pt dist/assets/sketch-cnn-v1.bin`. The browser loads pinned OpenCV.js for the same stroke rasterization used in training and runs all CNN operations locally. The displayed softmax score is a model score and has not been calibrated. Drawings outside the six supported classes can still receive a prediction.

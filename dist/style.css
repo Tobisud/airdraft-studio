@@ -46,3 +46,5 @@ canvas{display:block;width:100%;height:100%;touch-action:none}
 .review-controls fieldset{margin:15px 0 0;border:1px solid var(--line);border-radius:8px;padding:12px;min-width:0}
 .review-controls fieldset p{margin:0 0 7px}
 .review-controls #review-counts{margin-bottom:10px}
+
+.prediction{margin:0 14px 10px;color:var(--accent);font-size:14px;font-weight:600}
