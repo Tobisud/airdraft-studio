@@ -1,0 +1,286 @@
+{
+  "total": 200,
+  "duplicate_ids_removed": 0,
+  "labels": [
+    "stickman",
+    "house",
+    "fish",
+    "bird",
+    "tree",
+    "flower"
+  ],
+  "split": {
+    "train": {
+      "count": 112,
+      "percent": 56.0,
+      "labels": {
+        "house": 20,
+        "stickman": 19,
+        "fish": 20,
+        "flower": 20,
+        "tree": 21,
+        "bird": 12
+      },
+      "sources": {
+        "mouse": 71,
+        "camera": 38,
+        "camera+mouse": 3
+      }
+    },
+    "validation": {
+      "count": 28,
+      "percent": 14.0,
+      "labels": {
+        "fish": 5,
+        "bird": 3,
+        "tree": 5,
+        "stickman": 5,
+        "house": 5,
+        "flower": 5
+      },
+      "sources": {
+        "camera+mouse": 1,
+        "mouse": 15,
+        "camera": 12
+      }
+    },
+    "test": {
+      "count": 60,
+      "percent": 30.0,
+      "labels": {
+        "stickman": 10,
+        "house": 10,
+        "fish": 10,
+        "bird": 10,
+        "tree": 10,
+        "flower": 10
+      },
+      "sources": {
+        "camera": 60
+      }
+    }
+  },
+  "grouping": "session",
+  "test_group": "5858136a-69c3-460e-b1b8-a70147ff72f9",
+  "seed": 42,
+  "cnn": {
+    "parameters": 23382,
+    "epochs_run": 39,
+    "best_epoch": 24,
+    "best_validation_loss": 0.11738220602273941,
+    "best_validation_accuracy": 0.9642857142857143,
+    "test": {
+      "accuracy": 0.9833333333333333,
+      "macro_f1": 0.9832915622389308,
+      "per_class": {
+        "stickman": {
+          "precision": 1.0,
+          "recall": 1.0,
+          "f1-score": 1.0,
+          "support": 10.0
+        },
+        "house": {
+          "precision": 1.0,
+          "recall": 1.0,
+          "f1-score": 1.0,
+          "support": 10.0
+        },
+        "fish": {
+          "precision": 0.9090909090909091,
+          "recall": 1.0,
+          "f1-score": 0.9523809523809523,
+          "support": 10.0
+        },
+        "bird": {
+          "precision": 1.0,
+          "recall": 1.0,
+          "f1-score": 1.0,
+          "support": 10.0
+        },
+        "tree": {
+          "precision": 1.0,
+          "recall": 0.9,
+          "f1-score": 0.9473684210526315,
+          "support": 10.0
+        },
+        "flower": {
+          "precision": 1.0,
+          "recall": 1.0,
+          "f1-score": 1.0,
+          "support": 10.0
+        },
+        "accuracy": 0.9833333333333333,
+        "macro avg": {
+          "precision": 0.9848484848484849,
+          "recall": 0.9833333333333334,
+          "f1-score": 0.9832915622389308,
+          "support": 60.0
+        },
+        "weighted avg": {
+          "precision": 0.9848484848484849,
+          "recall": 0.9833333333333333,
+          "f1-score": 0.9832915622389307,
+          "support": 60.0
+        }
+      },
+      "confusion_matrix": [
+        [
+          10,
+          0,
+          0,
+          0,
+          0,
+          0
+        ],
+        [
+          0,
+          10,
+          0,
+          0,
+          0,
+          0
+        ],
+        [
+          0,
+          0,
+          10,
+          0,
+          0,
+          0
+        ],
+        [
+          0,
+          0,
+          0,
+          10,
+          0,
+          0
+        ],
+        [
+          0,
+          0,
+          1,
+          0,
+          9,
+          0
+        ],
+        [
+          0,
+          0,
+          0,
+          0,
+          0,
+          10
+        ]
+      ],
+      "loss": 0.12319908440113067
+    }
+  },
+  "hog_svm": {
+    "test": {
+      "accuracy": 0.95,
+      "macro_f1": 0.948849104859335,
+      "per_class": {
+        "stickman": {
+          "precision": 0.7692307692307693,
+          "recall": 1.0,
+          "f1-score": 0.8695652173913043,
+          "support": 10.0
+        },
+        "house": {
+          "precision": 1.0,
+          "recall": 1.0,
+          "f1-score": 1.0,
+          "support": 10.0
+        },
+        "fish": {
+          "precision": 1.0,
+          "recall": 1.0,
+          "f1-score": 1.0,
+          "support": 10.0
+        },
+        "bird": {
+          "precision": 1.0,
+          "recall": 1.0,
+          "f1-score": 1.0,
+          "support": 10.0
+        },
+        "tree": {
+          "precision": 1.0,
+          "recall": 1.0,
+          "f1-score": 1.0,
+          "support": 10.0
+        },
+        "flower": {
+          "precision": 1.0,
+          "recall": 0.7,
+          "f1-score": 0.8235294117647058,
+          "support": 10.0
+        },
+        "accuracy": 0.95,
+        "macro avg": {
+          "precision": 0.9615384615384616,
+          "recall": 0.9500000000000001,
+          "f1-score": 0.948849104859335,
+          "support": 60.0
+        },
+        "weighted avg": {
+          "precision": 0.9615384615384616,
+          "recall": 0.95,
+          "f1-score": 0.948849104859335,
+          "support": 60.0
+        }
+      },
+      "confusion_matrix": [
+        [
+          10,
+          0,
+          0,
+          0,
+          0,
+          0
+        ],
+        [
+          0,
+          10,
+          0,
+          0,
+          0,
+          0
+        ],
+        [
+          0,
+          0,
+          10,
+          0,
+          0,
+          0
+        ],
+        [
+          0,
+          0,
+          0,
+          10,
+          0,
+          0
+        ],
+        [
+          0,
+          0,
+          0,
+          0,
+          10,
+          0
+        ],
+        [
+          3,
+          0,
+          0,
+          0,
+          0,
+          7
+        ]
+      ]
+    }
+  }
+}

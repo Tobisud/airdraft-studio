@@ -13,10 +13,10 @@ A static browser app that turns fingertip drawings into 3D geometry. Serve the `
 | Pipeline | Steps | Public model or data |
 | --- | --- | --- |
 | Direct geometry (implemented) | MediaPipe `VIDEO` landmarks → index fingertip (8) and thumb tip (4) → smoothed, mirrored coordinates and palm-relative pinch hysteresis → 2D stroke paths → rounded stroke volumes blended into a clay figure, or a fitted gable extruded with fixed proportional depth. | [MediaPipe Hand Landmarker](https://ai.google.dev/edge/mediapipe/solutions/vision/hand_landmarker/web_js) |
-| Classify and fit a template | Render normalized strokes to raster input → fine-tune a MobileNetV3 classifier on target sketch classes, including unknown inputs → fit joints or roof corners to a parameterized template → add depth constraints and generate a mesh. Collect custom examples for classes or drawing styles missing from the public dataset. | [Quick, Draw!](https://quickdraw.withgoogle.com/data), [MobileNetV3 ImageNet weights](https://huggingface.co/timm/mobilenetv3_small_100.lamb_in1k) |
+| Classify and fit a template (implemented) | Rasterize normalized strokes → classify one of six sketch categories with the Small CNN → select a 3D template and fit its proportions or pose. | [AirDraft classifier and model comparison](training/README.md) |
 | Generate a reference and reconstruct | Condition Stable Diffusion 1.5 with ControlNet Scribble using the sketch and an object prompt → render one centered object with a clean background → remove background → run TripoSR on a GPU → inspect and export the predicted mesh. | [ControlNet Scribble](https://huggingface.co/lllyasviel/control_v11p_sd15_scribble), [TripoSR weights](https://huggingface.co/stabilityai/TripoSR) |
 
-Stick figure mode loads the bundled StickMan rig and poses its arms and legs from detected sketch joints. If the default model cannot load, the browser can still build the procedural clay figure. The gray house preview scales the approved template, including its rounded roof, chimney, and door, to the outline’s width and height. The template provides depth. A procedural gable serves as the fallback if the asset cannot load. The alternative pipelines are implementation designs. For evaluation, record average frame time, pinch start/stop accuracy, and output fit across held-out sketches and lighting conditions.
+Stick figure mode loads the bundled StickMan rig and poses its arms and legs from detected sketch joints. If the default model cannot load, the browser can still build the procedural clay figure. The gray house preview scales the approved template, including its rounded roof, chimney, and door, to the outline’s width and height. The template provides depth. A procedural gable serves as the fallback if the asset cannot load. The generative mesh pipeline is a design option. For evaluation, record average frame time, pinch start/stop accuracy, and output fit across held-out sketches and lighting conditions.
 
 ## Collect labeled sketches
 
@@ -30,4 +30,10 @@ See [the Python setup guide](python/README.md) for the OpenCV and MediaPipe desk
 
 ## Browser classifier
 
-Auto detect uses the AirDraft six-class CNN checkpoint. `scripts/export_sketch_cnn.py` folds batch normalization into the convolution weights and exports the browser asset. Run it with PyTorch and the trained checkpoint using `python scripts/export_sketch_cnn.py sketch-cnn.pt dist/assets/sketch-cnn-v1.bin`. The browser loads pinned OpenCV.js for the same stroke rasterization used in training and runs all CNN operations locally. The displayed softmax score is a model score and has not been calibrated. Drawings outside the six supported classes can still receive a prediction.
+Auto detect uses the trained AirDraft Small CNN. The browser loads pinned OpenCV.js to rasterize sketches the same way as the Python trainer, then runs inference locally. The displayed score is the CNN's uncalibrated softmax output. Drawings outside the six supported classes can still receive a prediction.
+
+See the [three-model training report](training/README.md) for the trained checkpoints, Python scripts, held-out test results, and training plots. From the repository root, regenerate the browser weights with PyTorch installed and the command below.
+
+```sh
+python scripts/export_sketch_cnn.py training/results/sketch-cnn.pt dist/assets/sketch-cnn-v1.bin
+```
